@@ -1,0 +1,27 @@
+export type MatchStatus = "idle" | "loading" | "matched" | "not_found" | "error";
+
+export type MovieRow = {
+  localId: string;
+  orderNumber: string;
+  tmdbId: string;
+  year: string;
+  title: string;
+  tmdbLink: string;
+  csfdLink: string;
+  status: MatchStatus;
+  message?: string;
+};
+
+export type CsfdSearchResponse = {
+  found: boolean;
+  url: string | null;
+  title?: string;
+  year?: string;
+  candidates?: Array<{
+    title: string;
+    year: string | null;
+    url: string;
+    score: number;
+  }>;
+  error?: string;
+};
