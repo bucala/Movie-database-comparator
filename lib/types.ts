@@ -25,3 +25,5 @@ export type CsfdSearchResponse = {
   }>;
   error?: string;
 };
+
+export type StatusFilter = "all" | MatchStatus;

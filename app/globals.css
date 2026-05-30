@@ -2,21 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/* ── Light mode (default) ── */
+:root,
+[data-theme="light"] {
   color-scheme: light;
-  background: #f7f9fb;
+  --bg: #f7f9fb;
+  --surface: #ffffff;
+  --surface-2: #f0f4f8;
+  --border: #e2e8f0;
+  --text: #17202a;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
+  --ink: #17202a;
+  --spruce: #0f766e;
+  --spruce-hover: #0d6560;
+  --ember: #b42318;
+  --mist: #eef3f7;
+  --shadow: 0 12px 40px rgba(23, 32, 42, 0.08);
+}
+
+/* ── Dark mode ── */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1318;
+  --surface: #181e26;
+  --surface-2: #1e2630;
+  --border: #2d3748;
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-faint: #4a5568;
+  --ink: #e2e8f0;
+  --spruce: #2dd4bf;
+  --spruce-hover: #14b8a6;
+  --ember: #f87171;
+  --mist: #1e2630;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
 body {
   margin: 0;
-  background:
-    linear-gradient(180deg, rgba(238, 243, 247, 0.84), rgba(247, 249, 251, 1) 320px),
-    #f7f9fb;
-  color: #17202a;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: inherit;
 }
 
 button,
@@ -24,4 +59,15 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+/* Transition pre smooth dark mode */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color;
+  transition-duration: 0.15s;
+  transition-timing-function: ease;
+}
+/* Vynechaj transition pre animácie */
+[data-no-transition] * {
+  transition: none !important;
 }

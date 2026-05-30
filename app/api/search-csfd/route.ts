@@ -2,6 +2,8 @@ import * as cheerio from "cheerio";
 import { NextResponse } from "next/server";
 
 const CSFD_BASE_URL = "https://www.csfd.cz";
+// Maximálny počet súbežných requestov – ochrana pred rate-limitom
+const MAX_TITLE_LENGTH = 200;
 
 type SearchRequest = {
   title?: string;
@@ -21,8 +23,10 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as SearchRequest;
-    const title = String(body.title ?? "").trim();
-    const year = String(body.year ?? "").trim();
+    const title = String(body.title ?? "").trim().slice(0, MAX_TITLE_LENGTH);
+    const rawYear = String(body.year ?? "").trim();
+    // Validácia roku – musí byť 4-ciferné číslo medzi 1888 a 2030
+    const year = /^(188[8-9]|18[9-9]\d|19\d{2}|20[0-2]\d|2030)$/.test(rawYear) ? rawYear : "";
 
     if (!title) {
       return NextResponse.json(
@@ -37,12 +41,12 @@ export async function POST(request: Request) {
     const response = await fetch(searchUrl, {
       cache: "no-store",
       headers: {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "accept-language": "sk-SK,sk;q=0.9,cs;q=0.8,en;q=0.7",
         "user-agent":
-          "Mozilla/5.0 (compatible; MovieDatabaseComparator/0.1; +https://vercel.app)"
+          "Mozilla/5.0 (compatible; MovieDatabaseComparator/0.2; +https://github.com/bucala/Movie-database-comparator)"
       },
-      next: { revalidate: 0 }
+      signal: AbortSignal.timeout(8000) // 8s timeout
     });
 
     if (!response.ok) {
@@ -77,7 +81,6 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Neznáma chyba.";
-
     return NextResponse.json(
       { found: false, url: null, error: message },
       { status: 500 }
@@ -89,23 +92,36 @@ function extractCandidates(html: string, wantedTitle: string, wantedYear: string
   const $ = cheerio.load(html);
   const byUrl = new Map<string, Candidate>();
 
-  $('a[href*="/film/"]').each((_, element) => {
+  // Hľadáme VÝLUČNE v sekciách výsledkov hľadania filmov (.search-list-result)
+  // aby sme vylúčili navigačné a iné odseky
+  const searchSections = $(".search-list-result, #snippet-search-films, .box-films, section.box");
+  const container = searchSections.length ? searchSections : $("body");
+
+  container.find('a[href*="/film/"]').each((_, element) => {
     const anchor = $(element);
     const href = anchor.attr("href");
+    if (!href) return;
 
-    if (!href) {
-      return;
-    }
+    // Preskočiť linky na recenzie, galériu, news, fórum atď.
+    if (/\/(recenze|komentare|galerie|zpravy|forum|zive)\//.test(href)) return;
 
     const absoluteUrl = normalizeCsfdUrl(href);
-    const containerText = anchor.closest("li, article, .box, .search-list, .content").text();
-    const rawText = `${anchor.text()} ${containerText}`.replace(/\s+/g, " ").trim();
-    const title = cleanCandidateTitle(anchor.text() || rawText);
-    const year = rawText.match(/\b(19|20)\d{2}\b/)?.[0] ?? null;
+    if (byUrl.has(absoluteUrl)) return;
 
-    if (!title || byUrl.has(absoluteUrl)) {
-      return;
-    }
+    // Nadradený kontajner pre rok
+    const parentText = anchor
+      .closest("li, article, .film, .search-list-item")
+      .text()
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const rawTitle = anchor.text().trim();
+    const title = cleanCandidateTitle(rawTitle);
+    if (!title || title.length < 2) return;
+
+    // Rok z nadrádeného textu – preferujeme rok čo najskôr
+    const yearMatch = parentText.match(/\b(19|20)\d{2}\b/);
+    const year = yearMatch ? yearMatch[0] : null;
 
     byUrl.set(absoluteUrl, {
       title,
@@ -116,20 +132,26 @@ function extractCandidates(html: string, wantedTitle: string, wantedYear: string
   });
 
   return Array.from(byUrl.values())
-    .filter((candidate) => candidate.title.length > 1)
+    .filter((c) => c.title.length > 1)
     .sort((a, b) => b.score - a.score);
 }
 
-function normalizeCsfdUrl(href: string) {
+function normalizeCsfdUrl(href: string): string {
   const absolute = href.startsWith("http") ? href : `${CSFD_BASE_URL}${href}`;
-  const url = new URL(absolute);
-  const path = url.pathname.endsWith("/") ? url.pathname : `${url.pathname}/`;
-  const detailPath = path.includes("/recenze/") ? path : `${path.replace(/\/(prehled\/)?$/, "/")}recenze/`;
-
-  return `${CSFD_BASE_URL}${detailPath}`;
+  try {
+    const url = new URL(absolute);
+    // Normalizácia: ponecháme len /film/{id}-{slug}/ bez ďalších podstránok
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    const filmIndex = pathParts.indexOf("film");
+    if (filmIndex === -1) return absolute;
+    const cleanPath = "/" + pathParts.slice(0, filmIndex + 2).join("/") + "/";
+    return `${CSFD_BASE_URL}${cleanPath}`;
+  } catch {
+    return absolute;
+  }
 }
 
-function cleanCandidateTitle(value: string) {
+function cleanCandidateTitle(value: string): string {
   return value
     .replace(/\s+/g, " ")
     .replace(/\(\d{4}\)/g, "")
@@ -142,30 +164,30 @@ function scoreCandidate(
   candidateYear: string | null,
   wantedTitle: string,
   wantedYear: string
-) {
+): number {
   const candidate = normalizeText(candidateTitle);
   const wanted = normalizeText(wantedTitle);
 
   let score = 0;
 
   if (candidate === wanted) {
-    score += 70;
+    score += 70; // presná zhoda
   } else if (candidate.includes(wanted) || wanted.includes(candidate)) {
-    score += 48;
+    score += 48; // čiastočná zhoda
   } else {
-    score += similarityScore(candidate, wanted) * 45;
+    score += similarityScore(candidate, wanted) * 45; // fuzzy
   }
 
   if (wantedYear && candidateYear === wantedYear) {
-    score += 30;
+    score += 30; // rok sedí
   } else if (wantedYear && candidateYear) {
-    score -= 15;
+    score -= 15; // rok nesedí
   }
 
   return Math.round(score);
 }
 
-function normalizeText(value: string) {
+function normalizeText(value: string): string {
   return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -174,32 +196,24 @@ function normalizeText(value: string) {
     .trim();
 }
 
-function similarityScore(a: string, b: string) {
-  if (!a || !b) {
-    return 0;
-  }
-
+function similarityScore(a: string, b: string): number {
+  if (!a || !b) return 0;
   const distance = levenshteinDistance(a, b);
   return 1 - distance / Math.max(a.length, b.length);
 }
 
-function levenshteinDistance(a: string, b: string) {
+function levenshteinDistance(a: string, b: string): number {
   const matrix = Array.from({ length: b.length + 1 }, (_, row) => [row]);
-
-  for (let column = 0; column <= a.length; column += 1) {
-    matrix[0][column] = column;
-  }
-
-  for (let row = 1; row <= b.length; row += 1) {
-    for (let column = 1; column <= a.length; column += 1) {
-      const substitutionCost = a[column - 1] === b[row - 1] ? 0 : 1;
-      matrix[row][column] = Math.min(
-        matrix[row - 1][column] + 1,
-        matrix[row][column - 1] + 1,
-        matrix[row - 1][column - 1] + substitutionCost
+  for (let col = 0; col <= a.length; col++) matrix[0][col] = col;
+  for (let row = 1; row <= b.length; row++) {
+    for (let col = 1; col <= a.length; col++) {
+      const cost = a[col - 1] === b[row - 1] ? 0 : 1;
+      matrix[row][col] = Math.min(
+        matrix[row - 1][col] + 1,
+        matrix[row][col - 1] + 1,
+        matrix[row - 1][col - 1] + cost
       );
     }
   }
-
   return matrix[b.length][a.length];
 }

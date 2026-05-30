@@ -28,7 +28,7 @@ function toMovieRow(columns: string[], index: number): MovieRow | null {
   }
 
   return {
-    localId: `${Date.now()}-${index}-${tmdbId || title}`,
+    localId: `row-${index}-${tmdbId || title}-${Math.random().toString(36).slice(2, 7)}`,
     orderNumber: orderNumber ?? "",
     tmdbId: tmdbId ?? "",
     year: year ?? "",
@@ -39,8 +39,39 @@ function toMovieRow(columns: string[], index: number): MovieRow | null {
   };
 }
 
+export function parseMovieJson(file: File): Promise<MovieRow[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(e.target?.result as string);
+        if (!Array.isArray(parsed)) {
+          return reject(new Error("JSON musí obsahovať pole objektov."));
+        }
+        const rows: MovieRow[] = parsed.map((item, index) => ({
+          localId: `row-${index}-${item.tmdbId || item.title}-${Math.random().toString(36).slice(2, 7)}`,
+          orderNumber: String(item.orderNumber ?? item["Poradové číslo"] ?? "").trim(),
+          tmdbId: String(item.tmdbId ?? item["TMDb ID"] ?? "").trim(),
+          year: String(item.year ?? item["Rok"] ?? "").trim(),
+          title: String(item.title ?? item["Názov filmu"] ?? "").trim(),
+          tmdbLink: String(item.tmdbLink ?? item["TMDb Link"] ?? "").trim(),
+          csfdLink: String(item.csfdLink ?? item["ČSFD Link"] ?? "").trim(),
+          status: (item.status as MovieRow["status"]) ?? (item.csfdLink ? "matched" : "idle")
+        }));
+        resolve(rows.filter((r) => r.tmdbId || r.title));
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(file, "utf-8");
+  });
+}
+
 export function movieRowsToCsv(rows: MovieRow[]) {
-  return Papa.unparse(
+  // UTF-8 BOM pre správne zobrazenie diakritiky v Exceli
+  const BOM = "\uFEFF";
+  const csv = Papa.unparse(
     rows.map((row) => ({
       "Poradové číslo": row.orderNumber,
       "TMDb ID": row.tmdbId,
@@ -50,17 +81,21 @@ export function movieRowsToCsv(rows: MovieRow[]) {
       "ČSFD Link": row.csfdLink
     }))
   );
+  return BOM + csv;
 }
 
 export function downloadTextFile(filename: string, text: string, mimeType: string) {
   const blob = new Blob([text], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
-
   anchor.href = url;
   anchor.download = filename;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
+}
+
+export function wait(ms: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 }
