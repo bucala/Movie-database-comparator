@@ -1,42 +1,41 @@
 import Papa from "papaparse";
-import type { MovieRow } from "@/lib/types";
+import type { MovieRow } from "./types";
+
+export function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export function parseMovieCsv(file: File, skipFirstRow: boolean): Promise<MovieRow[]> {
   return new Promise((resolve, reject) => {
     Papa.parse<string[]>(file, {
       skipEmptyLines: true,
-      complete: (result) => {
-        const rows = result.data
-          .slice(skipFirstRow ? 1 : 0)
-          .map((columns, index) => toMovieRow(columns, index))
-          .filter((row): row is MovieRow => Boolean(row));
-
-        resolve(rows);
+      complete(results) {
+        try {
+          const data = skipFirstRow ? results.data.slice(1) : results.data;
+          const rows: MovieRow[] = data.map((cols, index) => {
+            const rand = Math.random().toString(36).slice(2, 7);
+            return {
+              localId: `${Date.now()}-${index}-${cols[1] ?? ""}-${rand}`,
+              orderNumber: (cols[0] ?? "").trim(),
+              tmdbId: (cols[1] ?? "").trim(),
+              year: (cols[2] ?? "").trim(),
+              title: (cols[3] ?? "").trim(),
+              tmdbLink: (cols[4] ?? "").trim(),
+              csfdLink: (cols[5] ?? "").trim(),
+              csfdRating: (cols[6] ?? "").trim(),
+              status: (cols[5] ?? "").trim() ? "matched" : "idle"
+            };
+          });
+          resolve(rows);
+        } catch (err) {
+          reject(err);
+        }
       },
-      error: (error) => reject(error)
+      error(err) {
+        reject(new Error(err.message));
+      }
     });
   });
-}
-
-function toMovieRow(columns: string[], index: number): MovieRow | null {
-  const [orderNumber, tmdbId, year, title, tmdbLink] = columns.map((value) =>
-    String(value ?? "").trim()
-  );
-
-  if (!tmdbId && !year && !title) {
-    return null;
-  }
-
-  return {
-    localId: `row-${index}-${tmdbId || title}-${Math.random().toString(36).slice(2, 7)}`,
-    orderNumber: orderNumber ?? "",
-    tmdbId: tmdbId ?? "",
-    year: year ?? "",
-    title: title ?? "",
-    tmdbLink: tmdbLink ?? "",
-    csfdLink: "",
-    status: "idle"
-  };
 }
 
 export function parseMovieJson(file: File): Promise<MovieRow[]> {
@@ -44,58 +43,53 @@ export function parseMovieJson(file: File): Promise<MovieRow[]> {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const parsed = JSON.parse(e.target?.result as string);
-        if (!Array.isArray(parsed)) {
-          return reject(new Error("JSON musí obsahovať pole objektov."));
-        }
-        const rows: MovieRow[] = parsed.map((item, index) => ({
-          localId: `row-${index}-${item.tmdbId || item.title}-${Math.random().toString(36).slice(2, 7)}`,
-          orderNumber: String(item.orderNumber ?? item["Poradové číslo"] ?? "").trim(),
-          tmdbId: String(item.tmdbId ?? item["TMDb ID"] ?? "").trim(),
-          year: String(item.year ?? item["Rok"] ?? "").trim(),
-          title: String(item.title ?? item["Názov filmu"] ?? "").trim(),
-          tmdbLink: String(item.tmdbLink ?? item["TMDb Link"] ?? "").trim(),
-          csfdLink: String(item.csfdLink ?? item["ČSFD Link"] ?? "").trim(),
-          status: (item.status as MovieRow["status"]) ?? (item.csfdLink ? "matched" : "idle")
-        }));
-        resolve(rows.filter((r) => r.tmdbId || r.title));
+        const raw = JSON.parse(e.target?.result as string) as Record<string, string>[];
+        const rows: MovieRow[] = raw.map((item, index) => {
+          const rand = Math.random().toString(36).slice(2, 7);
+          return {
+            localId: `json-${Date.now()}-${index}-${rand}`,
+            orderNumber: String(item.orderNumber ?? ""),
+            tmdbId: String(item.tmdbId ?? ""),
+            year: String(item.year ?? ""),
+            title: String(item.title ?? ""),
+            tmdbLink: String(item.tmdbLink ?? ""),
+            csfdLink: String(item.csfdLink ?? ""),
+            csfdRating: String(item.csfdRating ?? ""),
+            status: (item.status as MovieRow["status"]) ?? (item.csfdLink ? "matched" : "idle"),
+            message: item.message ? String(item.message) : undefined
+          };
+        });
+        resolve(rows);
       } catch (err) {
         reject(err);
       }
     };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsText(file, "utf-8");
+    reader.onerror = () => reject(new Error("Chyba pri čítaní súboru."));
+    reader.readAsText(file);
   });
 }
 
-export function movieRowsToCsv(rows: MovieRow[]) {
-  // UTF-8 BOM pre správne zobrazenie diakritiky v Exceli
-  const BOM = "\uFEFF";
-  const csv = Papa.unparse(
-    rows.map((row) => ({
-      "Poradové číslo": row.orderNumber,
-      "TMDb ID": row.tmdbId,
-      Rok: row.year,
-      "Názov filmu": row.title,
-      "TMDb Link": row.tmdbLink,
-      "ČSFD Link": row.csfdLink
-    }))
-  );
-  return BOM + csv;
+export function movieRowsToCsv(rows: MovieRow[]): string {
+  const header = ["#", "TMDb ID", "Rok", "Názov", "TMDb Link", "ČSFD Link", "ČSFD Hodnotenie"];
+  const dataRows = rows.map((r) => [
+    r.orderNumber,
+    r.tmdbId,
+    r.year,
+    r.title,
+    r.tmdbLink,
+    r.csfdLink,
+    r.csfdRating
+  ]);
+  const csv = Papa.unparse([header, ...dataRows]);
+  return "\uFEFF" + csv; // UTF-8 BOM pre Excel
 }
 
-export function downloadTextFile(filename: string, text: string, mimeType: string) {
-  const blob = new Blob([text], { type: mimeType });
+export function downloadTextFile(filename: string, content: string, mimeType: string): void {
+  const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
   URL.revokeObjectURL(url);
-}
-
-export function wait(ms: number) {
-  return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 }

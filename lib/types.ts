@@ -8,6 +8,7 @@ export type MovieRow = {
   title: string;
   tmdbLink: string;
   csfdLink: string;
+  csfdRating: string;
   status: MatchStatus;
   message?: string;
 };
@@ -17,6 +18,7 @@ export type CsfdSearchResponse = {
   url: string | null;
   title?: string;
   year?: string;
+  rating?: string;
   candidates?: Array<{
     title: string;
     year: string | null;

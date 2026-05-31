@@ -2,7 +2,6 @@ import * as cheerio from "cheerio";
 import { NextResponse } from "next/server";
 
 const CSFD_BASE_URL = "https://www.csfd.cz";
-// Maximálny počet súbežných requestov – ochrana pred rate-limitom
 const MAX_TITLE_LENGTH = 200;
 
 type SearchRequest = {
@@ -20,12 +19,18 @@ type Candidate = {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const FETCH_HEADERS = {
+  accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "accept-language": "sk-SK,sk;q=0.9,cs;q=0.8,en;q=0.7",
+  "user-agent":
+    "Mozilla/5.0 (compatible; MovieDatabaseComparator/0.3; +https://github.com/bucala/Movie-database-comparator)"
+};
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as SearchRequest;
     const title = String(body.title ?? "").trim().slice(0, MAX_TITLE_LENGTH);
     const rawYear = String(body.year ?? "").trim();
-    // Validácia roku – musí byť 4-ciferné číslo medzi 1888 a 2030
     const year = /^(188[8-9]|18[9-9]\d|19\d{2}|20[0-2]\d|2030)$/.test(rawYear) ? rawYear : "";
 
     if (!title) {
@@ -40,13 +45,8 @@ export async function POST(request: Request) {
 
     const response = await fetch(searchUrl, {
       cache: "no-store",
-      headers: {
-        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "accept-language": "sk-SK,sk;q=0.9,cs;q=0.8,en;q=0.7",
-        "user-agent":
-          "Mozilla/5.0 (compatible; MovieDatabaseComparator/0.2; +https://github.com/bucala/Movie-database-comparator)"
-      },
-      signal: AbortSignal.timeout(8000) // 8s timeout
+      headers: FETCH_HEADERS,
+      signal: AbortSignal.timeout(8000)
     });
 
     if (!response.ok) {
@@ -72,11 +72,15 @@ export async function POST(request: Request) {
       });
     }
 
+    // Načítaj hodnotenie z detailovej stránky filmu
+    const rating = await fetchCsfdRating(bestCandidate.url);
+
     return NextResponse.json({
       found: true,
       url: bestCandidate.url,
       title: bestCandidate.title,
       year: bestCandidate.year,
+      rating,
       candidates: candidates.slice(0, 5)
     });
   } catch (error) {
@@ -88,12 +92,55 @@ export async function POST(request: Request) {
   }
 }
 
+/**
+ * Načíta detailovú stránku filmu a extrahuje % hodnotenie.
+ * Vráti napr. "87%" alebo null ak sa nenašlo.
+ */
+async function fetchCsfdRating(filmUrl: string): Promise<string | null> {
+  try {
+    const res = await fetch(filmUrl, {
+      cache: "no-store",
+      headers: FETCH_HEADERS,
+      signal: AbortSignal.timeout(6000)
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const $ = cheerio.load(html);
+
+    // ČSFD zobrazuje hodnotenie v .film-rating-average alebo .average
+    // Formát: "87 %" alebo "87%"
+    const selectors = [
+      ".film-rating-average",
+      ".average",
+      "[class*='rating-average']",
+      ".film-header-name .rating",
+      ".rating-average"
+    ];
+
+    for (const sel of selectors) {
+      const text = $(sel).first().text().trim();
+      const match = text.match(/(\d{1,3})\s*%/);
+      if (match) return `${match[1]}%`;
+    }
+
+    // Fallback: hľadaj číslo s % kdekoľvek v .film-header alebo .box-header
+    const headerText = $(".film-header, .box-header-rating, .film-info").first().text();
+    const fallbackMatch = headerText.match(/(\d{1,3})\s*%/);
+    if (fallbackMatch) {
+      const val = parseInt(fallbackMatch[1]);
+      if (val >= 1 && val <= 100) return `${val}%`;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function extractCandidates(html: string, wantedTitle: string, wantedYear: string): Candidate[] {
   const $ = cheerio.load(html);
   const byUrl = new Map<string, Candidate>();
 
-  // Hľadáme VÝLUČNE v sekciách výsledkov hľadania filmov (.search-list-result)
-  // aby sme vylúčili navigačné a iné odseky
   const searchSections = $(".search-list-result, #snippet-search-films, .box-films, section.box");
   const container = searchSections.length ? searchSections : $("body");
 
@@ -102,13 +149,11 @@ function extractCandidates(html: string, wantedTitle: string, wantedYear: string
     const href = anchor.attr("href");
     if (!href) return;
 
-    // Preskočiť linky na recenzie, galériu, news, fórum atď.
     if (/\/(recenze|komentare|galerie|zpravy|forum|zive)\//.test(href)) return;
 
     const absoluteUrl = normalizeCsfdUrl(href);
     if (byUrl.has(absoluteUrl)) return;
 
-    // Nadradený kontajner pre rok
     const parentText = anchor
       .closest("li, article, .film, .search-list-item")
       .text()
@@ -119,7 +164,6 @@ function extractCandidates(html: string, wantedTitle: string, wantedYear: string
     const title = cleanCandidateTitle(rawTitle);
     if (!title || title.length < 2) return;
 
-    // Rok z nadrádeného textu – preferujeme rok čo najskôr
     const yearMatch = parentText.match(/\b(19|20)\d{2}\b/);
     const year = yearMatch ? yearMatch[0] : null;
 
@@ -140,7 +184,6 @@ function normalizeCsfdUrl(href: string): string {
   const absolute = href.startsWith("http") ? href : `${CSFD_BASE_URL}${href}`;
   try {
     const url = new URL(absolute);
-    // Normalizácia: ponecháme len /film/{id}-{slug}/ bez ďalších podstránok
     const pathParts = url.pathname.split("/").filter(Boolean);
     const filmIndex = pathParts.indexOf("film");
     if (filmIndex === -1) return absolute;
@@ -171,17 +214,17 @@ function scoreCandidate(
   let score = 0;
 
   if (candidate === wanted) {
-    score += 70; // presná zhoda
+    score += 70;
   } else if (candidate.includes(wanted) || wanted.includes(candidate)) {
-    score += 48; // čiastočná zhoda
+    score += 48;
   } else {
-    score += similarityScore(candidate, wanted) * 45; // fuzzy
+    score += similarityScore(candidate, wanted) * 45;
   }
 
   if (wantedYear && candidateYear === wantedYear) {
-    score += 30; // rok sedí
+    score += 30;
   } else if (wantedYear && candidateYear) {
-    score -= 15; // rok nesedí
+    score -= 15;
   }
 
   return Math.round(score);

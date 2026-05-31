@@ -42,12 +42,10 @@ export function MovieMatcherTable() {
   const shouldStopRef = useRef(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
-  // Inicializácia témy bez flash
   useEffect(() => {
     setTheme(getInitialTheme());
   }, []);
 
-  // Zatvoriť settings pri kliku mimo
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
@@ -130,6 +128,7 @@ export function MovieMatcherTable() {
         if (payload.found && payload.url) {
           updateRow(row.localId, {
             csfdLink: payload.url,
+            csfdRating: payload.rating ?? "",
             status: "matched",
             message: payload.title
               ? `${payload.title}${payload.year ? ` (${payload.year})` : ""}`
@@ -181,6 +180,7 @@ export function MovieMatcherTable() {
       title: row.title,
       tmdbLink: row.tmdbLink,
       csfdLink: row.csfdLink,
+      csfdRating: row.csfdRating,
       status: row.status
     }));
     downloadTextFile(
@@ -286,7 +286,6 @@ export function MovieMatcherTable() {
                     Nastavenia
                   </p>
 
-                  {/* Dark / Light mode */}
                   <button
                     className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm transition hover:opacity-80"
                     style={{ color: "var(--text)" }}
@@ -302,7 +301,7 @@ export function MovieMatcherTable() {
                   </button>
 
                   <div className="my-2 border-t" style={{ borderColor: "var(--border)" }} />
-                  <p className="px-2 text-xs" style={{ color: "var(--text-faint)" }}>v0.2.0</p>
+                  <p className="px-2 text-xs" style={{ color: "var(--text-faint)" }}>v0.3.0</p>
                 </div>
               )}
             </div>
@@ -426,48 +425,14 @@ export function MovieMatcherTable() {
           <table className="min-w-full divide-y text-sm" style={{ borderColor: "var(--border)" }}>
             <thead style={{ background: "var(--mist)" }}>
               <tr>
-                <th
-                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  #
-                </th>
-                <th
-                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  TMDb ID
-                </th>
-                <th
-                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Názov
-                </th>
-                <th
-                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Rok
-                </th>
-                <th
-                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Status
-                </th>
-                <th
-                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  ČSFD Link
-                </th>
-                <th
-                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  Akcia
-                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>#</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>TMDb ID</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Názov</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Rok</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>ČSFD Link</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Hodnotenie</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Akcia</th>
               </tr>
             </thead>
             <tbody>
@@ -478,25 +443,17 @@ export function MovieMatcherTable() {
                     className="align-top border-t"
                     style={{ borderColor: "var(--border)" }}
                   >
-                    {/* Poradové číslo */}
-                    <td
-                      className="whitespace-nowrap px-4 py-3 text-sm tabular-nums"
-                      style={{ color: "var(--text-faint)" }}
-                    >
+                    {/* # */}
+                    <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums" style={{ color: "var(--text-faint)" }}>
                       {row.orderNumber || "—"}
                     </td>
                     {/* TMDb ID */}
-                    <td
-                      className="whitespace-nowrap px-4 py-3 font-medium tabular-nums"
-                      style={{ color: "var(--text)" }}
-                    >
+                    <td className="whitespace-nowrap px-4 py-3 font-medium tabular-nums" style={{ color: "var(--text)" }}>
                       {row.tmdbId}
                     </td>
                     {/* Názov */}
                     <td className="min-w-64 px-4 py-3">
-                      <div className="font-medium" style={{ color: "var(--text)" }}>
-                        {row.title}
-                      </div>
+                      <div className="font-medium" style={{ color: "var(--text)" }}>{row.title}</div>
                       {row.tmdbLink ? (
                         <a
                           className="mt-1 inline-block text-xs underline-offset-2 hover:underline"
@@ -510,22 +467,17 @@ export function MovieMatcherTable() {
                       ) : null}
                     </td>
                     {/* Rok */}
-                    <td
-                      className="whitespace-nowrap px-4 py-3"
-                      style={{ color: "var(--text-muted)" }}
-                    >
+                    <td className="whitespace-nowrap px-4 py-3" style={{ color: "var(--text-muted)" }}>
                       {row.year}
                     </td>
                     {/* Status */}
                     <td className="min-w-40 px-4 py-3">
                       <StatusBadge status={row.status} />
                       {row.message ? (
-                        <p className="mt-1 text-xs" style={{ color: "var(--text-faint)" }}>
-                          {row.message}
-                        </p>
+                        <p className="mt-1 text-xs" style={{ color: "var(--text-faint)" }}>{row.message}</p>
                       ) : null}
                     </td>
-                    {/* ČSFD Link input */}
+                    {/* ČSFD Link */}
                     <td className="min-w-80 px-4 py-3">
                       <input
                         className="w-full rounded-md border px-3 py-2 text-sm outline-none transition"
@@ -544,6 +496,14 @@ export function MovieMatcherTable() {
                           })
                         }
                       />
+                    </td>
+                    {/* Hodnotenie */}
+                    <td className="whitespace-nowrap px-4 py-3 text-center">
+                      {row.csfdRating ? (
+                        <RatingBadge rating={row.csfdRating} />
+                      ) : (
+                        <span style={{ color: "var(--text-faint)" }}>—</span>
+                      )}
                     </td>
                     {/* Akcia */}
                     <td className="whitespace-nowrap px-4 py-3">
@@ -567,7 +527,7 @@ export function MovieMatcherTable() {
                 <tr>
                   <td
                     className="px-4 py-16 text-center"
-                    colSpan={7}
+                    colSpan={8}
                     style={{ color: "var(--text-faint)" }}
                   >
                     {rows.length === 0 ? (
@@ -597,12 +557,8 @@ export function MovieMatcherTable() {
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-md px-3 py-2" style={{ background: "var(--mist)" }}>
-      <div className="text-lg font-semibold tabular-nums" style={{ color: "var(--ink)" }}>
-        {value}
-      </div>
-      <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-        {label}
-      </div>
+      <div className="text-lg font-semibold tabular-nums" style={{ color: "var(--ink)" }}>{value}</div>
+      <div className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</div>
     </div>
   );
 }
@@ -622,6 +578,28 @@ function StatusBadge({ status }: { status: MatchStatus }) {
       style={{ background: s.bg, color: s.color }}
     >
       {statusLabels[status]}
+    </span>
+  );
+}
+
+/**
+ * Farebný badge pre % hodnotenie:
+ *  >= 70% zelená, 50-69% oranžová, < 50% červená
+ */
+function RatingBadge({ rating }: { rating: string }) {
+  const num = parseInt(rating);
+  let bg = "#fee2e2";
+  let color = "#991b1b";
+  if (!isNaN(num)) {
+    if (num >= 70) { bg = "#d1fae5"; color = "#065f46"; }
+    else if (num >= 50) { bg = "#fef3c7"; color = "#92400e"; }
+  }
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold tabular-nums"
+      style={{ background: bg, color }}
+    >
+      {rating}
     </span>
   );
 }
