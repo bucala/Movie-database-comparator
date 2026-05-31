@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
     if (!title) {
       return NextResponse.json(
-        { found: false, url: null, error: "Ch\u00fdba n\u00e1zov filmu." },
+        { found: false, url: null, error: "Chýba názov filmu." },
         { status: 400 }
       );
     }
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       return NextResponse.json(
-        { found: false, url: null, error: `\u010cSFD vr\u00e1tilo HTTP ${response.status}.` },
+        { found: false, url: null, error: `ČSFD vrátilo HTTP ${response.status}.` },
         { status: 502 }
       );
     }
@@ -66,7 +66,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ found: false, url: null, candidates: candidates.slice(0, 5) });
     }
 
-    // Hodnotenie na\u010d\u00edtaj iba ke\u010f nie je skipRating
     const rating = skipRating ? null : await fetchCsfdRating(bestCandidate.url);
 
     return NextResponse.json({
@@ -78,7 +77,7 @@ export async function POST(request: Request) {
       candidates: candidates.slice(0, 5)
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Nezn\u00e1ma chyba.";
+    const message = error instanceof Error ? error.message : "Neznáma chyba.";
     return NextResponse.json({ found: false, url: null, error: message }, { status: 500 });
   }
 }
@@ -175,7 +174,12 @@ function cleanCandidateTitle(value: string): string {
   return value.replace(/\s+/g, " ").replace(/\(\d{4}\)/g, "").replace(/^\s*Film\s*/i, "").trim();
 }
 
-function scoreCandidate(candidateTitle: string, candidateYear: string | null, wantedTitle: string, wantedYear: string): number {
+function scoreCandidate(
+  candidateTitle: string,
+  candidateYear: string | null,
+  wantedTitle: string,
+  wantedYear: string
+): number {
   const candidate = normalizeText(candidateTitle);
   const wanted = normalizeText(wantedTitle);
   let score = 0;
@@ -188,7 +192,12 @@ function scoreCandidate(candidateTitle: string, candidateYear: string | null, wa
 }
 
 function normalizeText(value: string): string {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function similarityScore(a: string, b: string): number {
@@ -202,7 +211,11 @@ function levenshteinDistance(a: string, b: string): number {
   for (let row = 1; row <= b.length; row++) {
     for (let col = 1; col <= a.length; col++) {
       const cost = a[col - 1] === b[row - 1] ? 0 : 1;
-      matrix[row][col] = Math.min(matrix[row - 1][col] + 1, matrix[row][col - 1] + 1, matrix[row - 1][col - 1] + cost);
+      matrix[row][col] = Math.min(
+        matrix[row - 1][col] + 1,
+        matrix[row][col - 1] + 1,
+        matrix[row - 1][col - 1] + cost
+      );
     }
   }
   return matrix[b.length][a.length];

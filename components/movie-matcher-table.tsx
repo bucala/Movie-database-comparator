@@ -14,27 +14,27 @@ import type { CsfdSearchResponse, MatchStatus, MovieRow, RatingFilter, StatusFil
 const MATCH_DELAY_MS = 950;
 
 const statusLabels: Record<MatchStatus, string> = {
-  idle: "\u010cak\u00e1",
-  loading: "Na\u010d\u00edtavam...",
-  matched: "Sp\u00e1rovan\u00e9",
-  not_found: "Nena\u0161lo sa",
+  idle: "Čaká",
+  loading: "Načítavam...",
+  matched: "Spárované",
+  not_found: "Nenašlo sa",
   error: "Chyba"
 };
 
 const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
-  { value: "all", label: "V\u0161etky" },
-  { value: "matched", label: "Sp\u00e1rovan\u00e9" },
-  { value: "not_found", label: "Nena\u0161lo sa" },
-  { value: "idle", label: "\u010cak\u00e1" },
+  { value: "all", label: "Všetky" },
+  { value: "matched", label: "Spárované" },
+  { value: "not_found", label: "Nenašlo sa" },
+  { value: "idle", label: "Čaká" },
   { value: "error", label: "Chyba" },
-  { value: "loading", label: "Na\u010d\u00edtavam" }
+  { value: "loading", label: "Načítavam" }
 ];
 
 const RATING_FILTER_OPTIONS: { value: RatingFilter; label: string }[] = [
-  { value: "all", label: "V\u0161etky" },
+  { value: "all", label: "Všetky" },
   { value: "none", label: "Bez hodnotenia" },
-  { value: "high", label: "\u2265 70 %" },
-  { value: "mid", label: "50 \u2013 69 %" },
+  { value: "high", label: "≥ 70 %" },
+  { value: "mid", label: "50 – 69 %" },
   { value: "low", label: "< 50 %" }
 ];
 
@@ -64,7 +64,6 @@ export function MovieMatcherTable() {
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>("all");
   const [showSettings, setShowSettings] = useState(false);
   const [theme, setTheme] = useState<Theme>("light");
-  // localId bunky, ktor\u00e1 je pr\u00e1ve editovan\u00e1
   const [editingRatingId, setEditingRatingId] = useState<string | null>(null);
   const shouldStopRef = useRef(false);
   const settingsRef = useRef<HTMLDivElement>(null);
@@ -127,7 +126,7 @@ export function MovieMatcherTable() {
       setStatusFilter("all");
       setRatingFilter("all");
     } catch (err) {
-      alert(`Chyba pri na\u010d\u00edtan\u00ed s\u00faboru: ${err instanceof Error ? err.message : "Nezn\u00e1ma chyba"}`);
+      alert(`Chyba pri načítaní súboru: ${err instanceof Error ? err.message : "Neznáma chyba"}`);
     }
   }
 
@@ -166,13 +165,13 @@ export function MovieMatcherTable() {
         } else {
           updateRow(row.localId, {
             status: "not_found",
-            message: payload.error ?? "Zadaj \u010cSFD link manu\u00e1lne."
+            message: payload.error ?? "Zadaj ČSFD link manuálne."
           });
         }
       } catch (error) {
         updateRow(row.localId, {
           status: "error",
-          message: error instanceof Error ? error.message : "Vyh\u013ead\u00e1vanie zlyhalo."
+          message: error instanceof Error ? error.message : "Vyhľadávanie zlyhalo."
         });
       }
 
@@ -226,32 +225,45 @@ export function MovieMatcherTable() {
       {/* Toolbar */}
       <div className="rounded-lg border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)", boxShadow: "var(--shadow)" }}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          {/* L\u013eav\u00e1 strana */}
+          {/* Ľavá strana */}
           <div className="flex flex-wrap items-center gap-3">
 
             {/* Upload CSV */}
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold text-white transition" style={{ background: "var(--ink)" }} title="Nahra\u0165 CSV s\u00fabor">
+            <label
+              className="inline-flex cursor-pointer items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold text-white transition"
+              style={{ background: "var(--ink)" }}
+              title="Nahrať CSV súbor"
+            >
               <UploadIcon />
               Upload CSV
               <input accept=".csv,text/csv" className="sr-only" type="file" onChange={handleFileChange} />
             </label>
 
             {/* Import JSON */}
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2.5 text-sm font-semibold transition" style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }} title="Importova\u0165 ulo\u017een\u00fd JSON s\u00fabor">
+            <label
+              className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2.5 text-sm font-semibold transition"
+              style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
+              title="Importovať uložený JSON súbor"
+            >
               <UploadIcon />
               Import JSON
               <input accept=".json,application/json" className="sr-only" type="file" onChange={handleFileChange} />
             </label>
 
-            {/* Ignorova\u0165 prv\u00fd riadok */}
+            {/* Ignorovať prvý riadok */}
             <label className="inline-flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
-              <input checked={skipFirstRow} className="h-4 w-4 rounded border-slate-300" type="checkbox" onChange={(e) => setSkipFirstRow(e.target.checked)} />
-              Ignorova\u0165 prv\u00fd riadok
+              <input
+                checked={skipFirstRow}
+                className="h-4 w-4 rounded border-slate-300"
+                type="checkbox"
+                onChange={(e) => setSkipFirstRow(e.target.checked)}
+              />
+              Ignorovať prvý riadok
             </label>
 
             {fileName ? <span className="text-sm" style={{ color: "var(--text-faint)" }}>{fileName}</span> : null}
 
-            {/* Ikona nastaven\u00ed */}
+            {/* Ikona nastavení */}
             <div className="relative ml-1" ref={settingsRef}>
               <button
                 aria-label="Nastavenia"
@@ -264,19 +276,32 @@ export function MovieMatcherTable() {
               </button>
 
               {showSettings && (
-                <div className="absolute left-0 top-11 z-50 min-w-56 rounded-lg border p-3 shadow-lg" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-faint)" }}>Nastavenia</p>
+                <div
+                  className="absolute left-0 top-11 z-50 min-w-56 rounded-lg border p-3 shadow-lg"
+                  style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+                >
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-faint)" }}>
+                    Nastavenia
+                  </p>
 
                   {/* Dark / Light mode */}
-                  <button className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm transition hover:opacity-80" style={{ color: "var(--text)" }} type="button" onClick={toggleTheme}>
+                  <button
+                    className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm transition hover:opacity-80"
+                    style={{ color: "var(--text)" }}
+                    type="button"
+                    onClick={toggleTheme}
+                  >
                     {theme === "dark" ? <SunIcon /> : <MoonIcon />}
-                    {theme === "dark" ? "Svetl\u00fd re\u017eim" : "Tmav\u00fd re\u017eim"}
+                    {theme === "dark" ? "Svetlý režim" : "Tmavý režim"}
                   </button>
 
                   <div className="my-2 border-t" style={{ borderColor: "var(--border)" }} />
 
-                  {/* Ignorova\u0165 hodnotenie */}
-                  <label className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm hover:opacity-80" style={{ color: "var(--text)" }}>
+                  {/* Ignorovať hodnotenie */}
+                  <label
+                    className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm hover:opacity-80"
+                    style={{ color: "var(--text)" }}
+                  >
                     <input
                       checked={ignoreRating}
                       className="h-4 w-4 rounded border-slate-300"
@@ -286,21 +311,21 @@ export function MovieMatcherTable() {
                         if (e.target.checked) setRatingFilter("all");
                       }}
                     />
-                    Ignorova\u0165 hodnotenie
+                    Ignorovať hodnotenie
                   </label>
 
                   <div className="my-2 border-t" style={{ borderColor: "var(--border)" }} />
-                  <p className="px-2 text-xs" style={{ color: "var(--text-faint)" }}>v0.4.0</p>
+                  <p className="px-2 text-xs" style={{ color: "var(--text-faint)" }}>v0.4.1</p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Prav\u00e1 strana \u2013 \u0161tatistiky */}
+          {/* Pravá strana – štatistiky */}
           <div className="grid grid-cols-3 gap-2 text-center text-sm sm:min-w-80">
             <Stat label="Riadky" value={stats.total} />
-            <Stat label="Sp\u00e1rovan\u00e9" value={stats.matched} />
-            <Stat label="Ru\u010dne" value={stats.unmatched} />
+            <Stat label="Spárované" value={stats.matched} />
+            <Stat label="Ručne" value={stats.unmatched} />
           </div>
         </div>
 
@@ -308,17 +333,20 @@ export function MovieMatcherTable() {
         {matchingProgress !== null && (
           <div className="mt-4">
             <div className="mb-1 flex justify-between text-xs" style={{ color: "var(--text-muted)" }}>
-              <span>Prebieha p\u00e1rovanie\u2026</span>
+              <span>Prebieha párovanie…</span>
               <span>{matchingProgress}%</span>
             </div>
             <div className="h-1.5 w-full overflow-hidden rounded-full" style={{ background: "var(--surface-2)" }}>
-              <div className="h-full rounded-full transition-all duration-300" style={{ width: `${matchingProgress}%`, background: "var(--spruce)" }} />
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{ width: `${matchingProgress}%`, background: "var(--spruce)" }}
+              />
             </div>
           </div>
         )}
       </div>
 
-      {/* Ak\u010dn\u00e9 tla\u010didl\u00e1 + filtre */}
+      {/* Akčné tlačidlá + filtre */}
       <div className="flex flex-wrap items-center gap-3">
         <button
           className="rounded-md px-4 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed"
@@ -327,7 +355,7 @@ export function MovieMatcherTable() {
           type="button"
           onClick={runMatching}
         >
-          Spusti\u0165 p\u00e1rovanie
+          Spustiť párovanie
         </button>
         <button
           className="rounded-md border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed"
@@ -336,7 +364,7 @@ export function MovieMatcherTable() {
           type="button"
           onClick={stopMatching}
         >
-          Zastavi\u0165
+          Zastaviť
         </button>
         <button
           className="rounded-md border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed"
@@ -345,7 +373,7 @@ export function MovieMatcherTable() {
           type="button"
           onClick={exportCsv}
         >
-          Exportova\u0165 CSV
+          Exportovať CSV
         </button>
         <button
           className="rounded-md border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed"
@@ -354,12 +382,11 @@ export function MovieMatcherTable() {
           type="button"
           onClick={exportJson}
         >
-          Exportova\u0165 JSON
+          Exportovať JSON
         </button>
 
-        {/* Filtre \u2013 vpravo */}
+        {/* Filtre – vpravo */}
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {/* Filter STAV */}
           <span className="text-sm" style={{ color: "var(--text-muted)" }}>Stav:</span>
           <select
             className="rounded-md border px-3 py-2 text-sm transition"
@@ -372,7 +399,6 @@ export function MovieMatcherTable() {
             ))}
           </select>
 
-          {/* Filter HODNOTENIE \u2013 schovaj ak ignoreRating */}
           {!ignoreRating && (
             <>
               <span className="text-sm" style={{ color: "var(--text-muted)" }}>Hodnotenie:</span>
@@ -389,7 +415,6 @@ export function MovieMatcherTable() {
             </>
           )}
 
-          {/* Po\u010d\u00edtadlo */}
           {(statusFilter !== "all" || ratingFilter !== "all") && (
             <span className="text-sm" style={{ color: "var(--text-faint)" }}>
               {filteredRows.length} / {rows.length}
@@ -398,18 +423,21 @@ export function MovieMatcherTable() {
         </div>
       </div>
 
-      {/* Tabu\u013eka */}
-      <div className="overflow-hidden rounded-lg border" style={{ background: "var(--surface)", borderColor: "var(--border)", boxShadow: "var(--shadow)" }}>
+      {/* Tabuľka */}
+      <div
+        className="overflow-hidden rounded-lg border"
+        style={{ background: "var(--surface)", borderColor: "var(--border)", boxShadow: "var(--shadow)" }}
+      >
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y text-sm" style={{ borderColor: "var(--border)" }}>
             <thead style={{ background: "var(--mist)" }}>
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>#</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>TMDb ID</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>N\u00e1zov</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Názov</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Rok</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>\u010cSFD Link</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>ČSFD Link</th>
                 {showRatingCol && (
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Hodnotenie</th>
                 )}
@@ -420,25 +448,19 @@ export function MovieMatcherTable() {
               {filteredRows.length ? (
                 filteredRows.map((row) => (
                   <tr key={row.localId} className="align-top border-t" style={{ borderColor: "var(--border)" }}>
-                    {/* # */}
-                    <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums" style={{ color: "var(--text-faint)" }}>{row.orderNumber || "\u2014"}</td>
-                    {/* TMDb ID */}
+                    <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums" style={{ color: "var(--text-faint)" }}>{row.orderNumber || "—"}</td>
                     <td className="whitespace-nowrap px-4 py-3 font-medium tabular-nums" style={{ color: "var(--text)" }}>{row.tmdbId}</td>
-                    {/* N\u00e1zov */}
                     <td className="min-w-64 px-4 py-3">
                       <div className="font-medium" style={{ color: "var(--text)" }}>{row.title}</div>
                       {row.tmdbLink ? (
                         <a className="mt-1 inline-block text-xs underline-offset-2 hover:underline" href={row.tmdbLink} rel="noreferrer" style={{ color: "var(--text-faint)" }} target="_blank">TMDb</a>
                       ) : null}
                     </td>
-                    {/* Rok */}
                     <td className="whitespace-nowrap px-4 py-3" style={{ color: "var(--text-muted)" }}>{row.year}</td>
-                    {/* Status */}
                     <td className="min-w-40 px-4 py-3">
                       <StatusBadge status={row.status} />
                       {row.message ? <p className="mt-1 text-xs" style={{ color: "var(--text-faint)" }}>{row.message}</p> : null}
                     </td>
-                    {/* \u010cSFD Link */}
                     <td className="min-w-80 px-4 py-3">
                       <input
                         className="w-full rounded-md border px-3 py-2 text-sm outline-none transition"
@@ -449,7 +471,6 @@ export function MovieMatcherTable() {
                         onChange={(e) => updateRow(row.localId, { csfdLink: e.target.value, status: e.target.value ? "matched" : "idle" })}
                       />
                     </td>
-                    {/* Hodnotenie \u2013 editovate\u013en\u00e9 */}
                     {showRatingCol && (
                       <td className="whitespace-nowrap px-4 py-3">
                         {editingRatingId === row.localId ? (
@@ -472,26 +493,25 @@ export function MovieMatcherTable() {
                         ) : (
                           <button
                             className="group flex items-center gap-1.5 rounded px-1 py-0.5 transition hover:opacity-80"
-                            title="Klikni pre \u00fapravu hodnotenia"
+                            title="Klikni pre úpravu hodnotenia"
                             type="button"
                             onClick={() => setEditingRatingId(row.localId)}
                           >
                             {row.csfdRating ? (
                               <RatingBadge rating={row.csfdRating} />
                             ) : (
-                              <span className="text-xs" style={{ color: "var(--text-faint)" }}>\u2014</span>
+                              <span className="text-xs" style={{ color: "var(--text-faint)" }}>—</span>
                             )}
                             <PencilIcon />
                           </button>
                         )}
                       </td>
                     )}
-                    {/* Akcia */}
                     <td className="whitespace-nowrap px-4 py-3">
                       {row.csfdLink ? (
-                        <a className="font-semibold underline-offset-2 hover:underline" href={row.csfdLink} rel="noreferrer" style={{ color: "var(--spruce)" }} target="_blank">Otvori\u0165</a>
+                        <a className="font-semibold underline-offset-2 hover:underline" href={row.csfdLink} rel="noreferrer" style={{ color: "var(--spruce)" }} target="_blank">Otvoriť</a>
                       ) : (
-                        <span style={{ color: "var(--text-faint)" }}>\u2014</span>
+                        <span style={{ color: "var(--text-faint)" }}>—</span>
                       )}
                     </td>
                   </tr>
@@ -502,15 +522,19 @@ export function MovieMatcherTable() {
                     {rows.length === 0 ? (
                       <div className="flex flex-col items-center gap-3">
                         <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-faint)" }}>
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                          <polyline points="14 2 14 8 20 8"/>
+                          <line x1="16" y1="13" x2="8" y2="13"/>
+                          <line x1="16" y1="17" x2="8" y2="17"/>
+                          <polyline points="10 9 9 9 8 9"/>
                         </svg>
                         <div>
-                          <p className="font-medium text-sm" style={{ color: "var(--text-muted)" }}>\u017diadne d\u00e1ta</p>
-                          <p className="text-xs mt-1">Nahraj CSV alebo JSON s\u00fabor vo form\u00e1te: poradov\u00e9 \u010d\u00edslo, TMDb ID, rok, n\u00e1zov, TMDb link.</p>
+                          <p className="font-medium text-sm" style={{ color: "var(--text-muted)" }}>Žiadne dáta</p>
+                          <p className="text-xs mt-1">Nahraj CSV alebo JSON súbor vo formáte: poradové číslo, TMDb ID, rok, názov, TMDb link.</p>
                         </div>
                       </div>
                     ) : (
-                      <span>\u017diadne z\u00e1znamy pre zvolen\u00fd filter.</span>
+                      <span>Žiadne záznamy pre zvolený filter.</span>
                     )}
                   </td>
                 </tr>
@@ -523,7 +547,7 @@ export function MovieMatcherTable() {
   );
 }
 
-// ── Pomocn\u00e9 komponenty ────────────────────────────────────────────────────────
+// ── Pomocné komponenty ──────────────────────────────────────────────────────
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
@@ -565,21 +589,53 @@ function RatingBadge({ rating }: { rating: string }) {
 }
 
 function UploadIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/>
+      <line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+  );
 }
 
 function GearIcon() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+  );
 }
 
 function SunIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>;
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="5"/>
+      <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+      <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  );
 }
 
 function MoonIcon() {
-  return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>;
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+    </svg>
+  );
 }
 
 function PencilIcon() {
-  return <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-0 group-hover:opacity-60 transition"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+  return (
+    <svg
+      width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      className="opacity-0 group-hover:opacity-60 transition"
+    >
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
+  );
 }
