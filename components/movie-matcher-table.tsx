@@ -64,7 +64,11 @@ export function MovieMatcherTable() {
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>("all");
   const [showSettings, setShowSettings] = useState(false);
   const [theme, setTheme] = useState<Theme>("light");
+
+  // Oddelený lokálny draft — rows sa nemenia počas písania
   const [editingRatingId, setEditingRatingId] = useState<string | null>(null);
+  const [draftRating, setDraftRating] = useState<string>("");
+
   const shouldStopRef = useRef(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
@@ -84,6 +88,28 @@ export function MovieMatcherTable() {
     const next: Theme = theme === "light" ? "dark" : "light";
     setTheme(next);
     applyTheme(next);
+  }
+
+  // Otvorí edit pre daný riadok, nastaví draft na aktuálnu hodnotu (bez %)
+  function startEditRating(localId: string, currentRating: string) {
+    setEditingRatingId(localId);
+    setDraftRating(currentRating.replace("%", ""));
+  }
+
+  // Zapíše draft do rows a zatvorí edit
+  function commitRating(localId: string) {
+    const raw = draftRating.replace(/[^0-9]/g, "").slice(0, 3);
+    const num = parseInt(raw);
+    const val = raw === "" ? "" : (num > 100 ? "100%" : `${num}%`);
+    updateRow(localId, { csfdRating: val });
+    setEditingRatingId(null);
+    setDraftRating("");
+  }
+
+  // Zruší edit bez zmeny (Escape)
+  function cancelEditRating() {
+    setEditingRatingId(null);
+    setDraftRating("");
   }
 
   const stats = useMemo(() => {
@@ -315,7 +341,7 @@ export function MovieMatcherTable() {
                   </label>
 
                   <div className="my-2 border-t" style={{ borderColor: "var(--border)" }} />
-                  <p className="px-2 text-xs" style={{ color: "var(--text-faint)" }}>v0.4.1</p>
+                  <p className="px-2 text-xs" style={{ color: "var(--text-faint)" }}>v0.4.2</p>
                 </div>
               )}
             </div>
@@ -480,22 +506,23 @@ export function MovieMatcherTable() {
                             placeholder="0-100"
                             style={{ background: "var(--surface)", borderColor: "var(--spruce)", color: "var(--text)" }}
                             type="text"
-                            value={row.csfdRating.replace("%", "")}
-                            onBlur={() => setEditingRatingId(null)}
+                            value={draftRating}
                             onChange={(e) => {
-                              const raw = e.target.value.replace(/[^0-9]/g, "").slice(0, 3);
-                              const num = parseInt(raw);
-                              const val = raw === "" ? "" : (num > 100 ? "100%" : `${num}%`);
-                              updateRow(row.localId, { csfdRating: raw === "" ? "" : val });
+                              // Len číslice, max 3 znaky — ukladá sa do draftRating, NIE do rows
+                              setDraftRating(e.target.value.replace(/[^0-9]/g, "").slice(0, 3));
                             }}
-                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === "Escape") setEditingRatingId(null); }}
+                            onBlur={() => commitRating(row.localId)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") commitRating(row.localId);
+                              if (e.key === "Escape") cancelEditRating();
+                            }}
                           />
                         ) : (
                           <button
                             className="group flex items-center gap-1.5 rounded px-1 py-0.5 transition hover:opacity-80"
                             title="Klikni pre úpravu hodnotenia"
                             type="button"
-                            onClick={() => setEditingRatingId(row.localId)}
+                            onClick={() => startEditRating(row.localId, row.csfdRating)}
                           >
                             {row.csfdRating ? (
                               <RatingBadge rating={row.csfdRating} />
