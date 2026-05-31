@@ -7,6 +7,7 @@ const MAX_TITLE_LENGTH = 200;
 type SearchRequest = {
   title?: string;
   year?: string | number;
+  skipRating?: boolean;
 };
 
 type Candidate = {
@@ -23,7 +24,7 @@ const FETCH_HEADERS = {
   accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
   "accept-language": "sk-SK,sk;q=0.9,cs;q=0.8,en;q=0.7",
   "user-agent":
-    "Mozilla/5.0 (compatible; MovieDatabaseComparator/0.3; +https://github.com/bucala/Movie-database-comparator)"
+    "Mozilla/5.0 (compatible; MovieDatabaseComparator/0.4; +https://github.com/bucala/Movie-database-comparator)"
 };
 
 export async function POST(request: Request) {
@@ -31,11 +32,12 @@ export async function POST(request: Request) {
     const body = (await request.json()) as SearchRequest;
     const title = String(body.title ?? "").trim().slice(0, MAX_TITLE_LENGTH);
     const rawYear = String(body.year ?? "").trim();
+    const skipRating = body.skipRating === true;
     const year = /^(188[8-9]|18[9-9]\d|19\d{2}|20[0-2]\d|2030)$/.test(rawYear) ? rawYear : "";
 
     if (!title) {
       return NextResponse.json(
-        { found: false, url: null, error: "Chýba názov filmu." },
+        { found: false, url: null, error: "Ch\u00fdba n\u00e1zov filmu." },
         { status: 400 }
       );
     }
@@ -51,11 +53,7 @@ export async function POST(request: Request) {
 
     if (!response.ok) {
       return NextResponse.json(
-        {
-          found: false,
-          url: null,
-          error: `ČSFD vrátilo HTTP ${response.status}. Skús to neskôr alebo vlož link manuálne.`
-        },
+        { found: false, url: null, error: `\u010cSFD vr\u00e1tilo HTTP ${response.status}.` },
         { status: 502 }
       );
     }
@@ -65,37 +63,26 @@ export async function POST(request: Request) {
     const bestCandidate = candidates[0];
 
     if (!bestCandidate || bestCandidate.score < 45) {
-      return NextResponse.json({
-        found: false,
-        url: null,
-        candidates: candidates.slice(0, 5)
-      });
+      return NextResponse.json({ found: false, url: null, candidates: candidates.slice(0, 5) });
     }
 
-    // Načítaj hodnotenie z detailovej stránky filmu
-    const rating = await fetchCsfdRating(bestCandidate.url);
+    // Hodnotenie na\u010d\u00edtaj iba ke\u010f nie je skipRating
+    const rating = skipRating ? null : await fetchCsfdRating(bestCandidate.url);
 
     return NextResponse.json({
       found: true,
       url: bestCandidate.url,
       title: bestCandidate.title,
       year: bestCandidate.year,
-      rating,
+      ...(rating ? { rating } : {}),
       candidates: candidates.slice(0, 5)
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Neznáma chyba.";
-    return NextResponse.json(
-      { found: false, url: null, error: message },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : "Nezn\u00e1ma chyba.";
+    return NextResponse.json({ found: false, url: null, error: message }, { status: 500 });
   }
 }
 
-/**
- * Načíta detailovú stránku filmu a extrahuje % hodnotenie.
- * Vráti napr. "87%" alebo null ak sa nenašlo.
- */
 async function fetchCsfdRating(filmUrl: string): Promise<string | null> {
   try {
     const res = await fetch(filmUrl, {
@@ -107,8 +94,6 @@ async function fetchCsfdRating(filmUrl: string): Promise<string | null> {
     const html = await res.text();
     const $ = cheerio.load(html);
 
-    // ČSFD zobrazuje hodnotenie v .film-rating-average alebo .average
-    // Formát: "87 %" alebo "87%"
     const selectors = [
       ".film-rating-average",
       ".average",
@@ -123,7 +108,6 @@ async function fetchCsfdRating(filmUrl: string): Promise<string | null> {
       if (match) return `${match[1]}%`;
     }
 
-    // Fallback: hľadaj číslo s % kdekoľvek v .film-header alebo .box-header
     const headerText = $(".film-header, .box-header-rating, .film-info").first().text();
     const fallbackMatch = headerText.match(/(\d{1,3})\s*%/);
     if (fallbackMatch) {
@@ -148,7 +132,6 @@ function extractCandidates(html: string, wantedTitle: string, wantedYear: string
     const anchor = $(element);
     const href = anchor.attr("href");
     if (!href) return;
-
     if (/\/(recenze|komentare|galerie|zpravy|forum|zive)\//.test(href)) return;
 
     const absoluteUrl = normalizeCsfdUrl(href);
@@ -156,9 +139,7 @@ function extractCandidates(html: string, wantedTitle: string, wantedYear: string
 
     const parentText = anchor
       .closest("li, article, .film, .search-list-item")
-      .text()
-      .replace(/\s+/g, " ")
-      .trim();
+      .text().replace(/\s+/g, " ").trim();
 
     const rawTitle = anchor.text().trim();
     const title = cleanCandidateTitle(rawTitle);
@@ -168,9 +149,7 @@ function extractCandidates(html: string, wantedTitle: string, wantedYear: string
     const year = yearMatch ? yearMatch[0] : null;
 
     byUrl.set(absoluteUrl, {
-      title,
-      year,
-      url: absoluteUrl,
+      title, year, url: absoluteUrl,
       score: scoreCandidate(title, year, wantedTitle, wantedYear)
     });
   });
@@ -189,60 +168,32 @@ function normalizeCsfdUrl(href: string): string {
     if (filmIndex === -1) return absolute;
     const cleanPath = "/" + pathParts.slice(0, filmIndex + 2).join("/") + "/";
     return `${CSFD_BASE_URL}${cleanPath}`;
-  } catch {
-    return absolute;
-  }
+  } catch { return absolute; }
 }
 
 function cleanCandidateTitle(value: string): string {
-  return value
-    .replace(/\s+/g, " ")
-    .replace(/\(\d{4}\)/g, "")
-    .replace(/^\s*Film\s*/i, "")
-    .trim();
+  return value.replace(/\s+/g, " ").replace(/\(\d{4}\)/g, "").replace(/^\s*Film\s*/i, "").trim();
 }
 
-function scoreCandidate(
-  candidateTitle: string,
-  candidateYear: string | null,
-  wantedTitle: string,
-  wantedYear: string
-): number {
+function scoreCandidate(candidateTitle: string, candidateYear: string | null, wantedTitle: string, wantedYear: string): number {
   const candidate = normalizeText(candidateTitle);
   const wanted = normalizeText(wantedTitle);
-
   let score = 0;
-
-  if (candidate === wanted) {
-    score += 70;
-  } else if (candidate.includes(wanted) || wanted.includes(candidate)) {
-    score += 48;
-  } else {
-    score += similarityScore(candidate, wanted) * 45;
-  }
-
-  if (wantedYear && candidateYear === wantedYear) {
-    score += 30;
-  } else if (wantedYear && candidateYear) {
-    score -= 15;
-  }
-
+  if (candidate === wanted) score += 70;
+  else if (candidate.includes(wanted) || wanted.includes(candidate)) score += 48;
+  else score += similarityScore(candidate, wanted) * 45;
+  if (wantedYear && candidateYear === wantedYear) score += 30;
+  else if (wantedYear && candidateYear) score -= 15;
   return Math.round(score);
 }
 
 function normalizeText(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 function similarityScore(a: string, b: string): number {
   if (!a || !b) return 0;
-  const distance = levenshteinDistance(a, b);
-  return 1 - distance / Math.max(a.length, b.length);
+  return 1 - levenshteinDistance(a, b) / Math.max(a.length, b.length);
 }
 
 function levenshteinDistance(a: string, b: string): number {
@@ -251,11 +202,7 @@ function levenshteinDistance(a: string, b: string): number {
   for (let row = 1; row <= b.length; row++) {
     for (let col = 1; col <= a.length; col++) {
       const cost = a[col - 1] === b[row - 1] ? 0 : 1;
-      matrix[row][col] = Math.min(
-        matrix[row - 1][col] + 1,
-        matrix[row][col - 1] + 1,
-        matrix[row - 1][col - 1] + cost
-      );
+      matrix[row][col] = Math.min(matrix[row - 1][col] + 1, matrix[row][col - 1] + 1, matrix[row - 1][col - 1] + cost);
     }
   }
   return matrix[b.length][a.length];

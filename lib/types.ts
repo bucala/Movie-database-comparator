@@ -29,3 +29,5 @@ export type CsfdSearchResponse = {
 };
 
 export type StatusFilter = "all" | MatchStatus;
+
+export type RatingFilter = "all" | "none" | "low" | "mid" | "high";
