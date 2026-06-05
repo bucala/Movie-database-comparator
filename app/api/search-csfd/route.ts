@@ -1,25 +1,38 @@
-import * as cheerio from "cheerio";
 import { NextResponse } from "next/server";
-
-const CSFD_BASE_URL = "https://www.csfd.cz";
+import {
+  AUTO_MATCH_THRESHOLD,
+  buildCsfdSearchUrl,
+  extractCandidates,
+  getBestCandidate,
+  isAmbiguousCandidates
+} from "@/lib/csfd-match";
+import type { CsfdSearchResponse } from "@/lib/types";
 
 type SearchRequest = {
   title?: string;
   year?: string | number;
 };
 
-type Candidate = {
-  title: string;
-  year: string | null;
-  url: string;
-  score: number;
-};
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const CACHE_MAX_ITEMS = 500;
+const searchCache = new Map<string, { expiresAt: number; payload: CsfdSearchResponse }>();
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
+    if (!isAuthorized(request)) {
+      return NextResponse.json(
+        {
+          found: false,
+          url: null,
+          error: "API endpoint je chránený. Zadaj interný token."
+        },
+        { status: 401 }
+      );
+    }
+
     const body = (await request.json()) as SearchRequest;
     const title = String(body.title ?? "").trim();
     const year = String(body.year ?? "").trim();
@@ -31,8 +44,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const query = [title, year].filter(Boolean).join(" ");
-    const searchUrl = `${CSFD_BASE_URL}/hledat/?q=${encodeURIComponent(query)}`;
+    const cacheKey = `${title.toLocaleLowerCase("sk-SK")}::${year}`;
+    const cached = readCache(cacheKey);
+
+    if (cached) {
+      return NextResponse.json({ ...cached, cached: true });
+    }
+
+    const searchUrl = buildCsfdSearchUrl(title, year);
 
     const response = await fetch(searchUrl, {
       cache: "no-store",
@@ -58,23 +77,35 @@ export async function POST(request: Request) {
 
     const html = await response.text();
     const candidates = extractCandidates(html, title, year);
-    const bestCandidate = candidates[0];
+    const bestCandidate = getBestCandidate(candidates);
+    const ambiguous = isAmbiguousCandidates(candidates);
 
-    if (!bestCandidate || bestCandidate.score < 45) {
-      return NextResponse.json({
+    if (!bestCandidate || bestCandidate.score < AUTO_MATCH_THRESHOLD) {
+      const payload: CsfdSearchResponse = {
         found: false,
         url: null,
+        cached: false,
+        ambiguous,
         candidates: candidates.slice(0, 5)
-      });
+      };
+
+      writeCache(cacheKey, payload);
+      return NextResponse.json(payload);
     }
 
-    return NextResponse.json({
+    const payload: CsfdSearchResponse = {
       found: true,
       url: bestCandidate.url,
       title: bestCandidate.title,
       year: bestCandidate.year,
+      score: bestCandidate.score,
+      cached: false,
+      ambiguous,
       candidates: candidates.slice(0, 5)
-    });
+    };
+
+    writeCache(cacheKey, payload);
+    return NextResponse.json(payload);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Neznáma chyba.";
 
@@ -85,121 +116,45 @@ export async function POST(request: Request) {
   }
 }
 
-function extractCandidates(html: string, wantedTitle: string, wantedYear: string): Candidate[] {
-  const $ = cheerio.load(html);
-  const byUrl = new Map<string, Candidate>();
+function isAuthorized(request: Request) {
+  const expectedToken = process.env.CSFD_API_TOKEN;
 
-  $('a[href*="/film/"]').each((_, element) => {
-    const anchor = $(element);
-    const href = anchor.attr("href");
+  if (!expectedToken) {
+    return true;
+  }
 
-    if (!href) {
-      return;
+  const headerToken = request.headers.get("x-api-token");
+  const bearerToken = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+
+  return headerToken === expectedToken || bearerToken === expectedToken;
+}
+
+function readCache(cacheKey: string) {
+  const cached = searchCache.get(cacheKey);
+
+  if (!cached) {
+    return null;
+  }
+
+  if (cached.expiresAt < Date.now()) {
+    searchCache.delete(cacheKey);
+    return null;
+  }
+
+  return cached.payload;
+}
+
+function writeCache(cacheKey: string, payload: CsfdSearchResponse) {
+  if (searchCache.size >= CACHE_MAX_ITEMS) {
+    const firstKey = searchCache.keys().next().value as string | undefined;
+
+    if (firstKey) {
+      searchCache.delete(firstKey);
     }
+  }
 
-    const absoluteUrl = normalizeCsfdUrl(href);
-    const containerText = anchor.closest("li, article, .box, .search-list, .content").text();
-    const rawText = `${anchor.text()} ${containerText}`.replace(/\s+/g, " ").trim();
-    const title = cleanCandidateTitle(anchor.text() || rawText);
-    const year = rawText.match(/\b(19|20)\d{2}\b/)?.[0] ?? null;
-
-    if (!title || byUrl.has(absoluteUrl)) {
-      return;
-    }
-
-    byUrl.set(absoluteUrl, {
-      title,
-      year,
-      url: absoluteUrl,
-      score: scoreCandidate(title, year, wantedTitle, wantedYear)
-    });
+  searchCache.set(cacheKey, {
+    expiresAt: Date.now() + CACHE_TTL_MS,
+    payload
   });
-
-  return Array.from(byUrl.values())
-    .filter((candidate) => candidate.title.length > 1)
-    .sort((a, b) => b.score - a.score);
-}
-
-function normalizeCsfdUrl(href: string) {
-  const absolute = href.startsWith("http") ? href : `${CSFD_BASE_URL}${href}`;
-  const url = new URL(absolute);
-  const path = url.pathname.endsWith("/") ? url.pathname : `${url.pathname}/`;
-  const detailPath = path.includes("/recenze/") ? path : `${path.replace(/\/(prehled\/)?$/, "/")}recenze/`;
-
-  return `${CSFD_BASE_URL}${detailPath}`;
-}
-
-function cleanCandidateTitle(value: string) {
-  return value
-    .replace(/\s+/g, " ")
-    .replace(/\(\d{4}\)/g, "")
-    .replace(/^\s*Film\s*/i, "")
-    .trim();
-}
-
-function scoreCandidate(
-  candidateTitle: string,
-  candidateYear: string | null,
-  wantedTitle: string,
-  wantedYear: string
-) {
-  const candidate = normalizeText(candidateTitle);
-  const wanted = normalizeText(wantedTitle);
-
-  let score = 0;
-
-  if (candidate === wanted) {
-    score += 70;
-  } else if (candidate.includes(wanted) || wanted.includes(candidate)) {
-    score += 48;
-  } else {
-    score += similarityScore(candidate, wanted) * 45;
-  }
-
-  if (wantedYear && candidateYear === wantedYear) {
-    score += 30;
-  } else if (wantedYear && candidateYear) {
-    score -= 15;
-  }
-
-  return Math.round(score);
-}
-
-function normalizeText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
-function similarityScore(a: string, b: string) {
-  if (!a || !b) {
-    return 0;
-  }
-
-  const distance = levenshteinDistance(a, b);
-  return 1 - distance / Math.max(a.length, b.length);
-}
-
-function levenshteinDistance(a: string, b: string) {
-  const matrix = Array.from({ length: b.length + 1 }, (_, row) => [row]);
-
-  for (let column = 0; column <= a.length; column += 1) {
-    matrix[0][column] = column;
-  }
-
-  for (let row = 1; row <= b.length; row += 1) {
-    for (let column = 1; column <= a.length; column += 1) {
-      const substitutionCost = a[column - 1] === b[row - 1] ? 0 : 1;
-      matrix[row][column] = Math.min(
-        matrix[row - 1][column] + 1,
-        matrix[row][column - 1] + 1,
-        matrix[row - 1][column - 1] + substitutionCost
-      );
-    }
-  }
-
-  return matrix[b.length][a.length];
 }

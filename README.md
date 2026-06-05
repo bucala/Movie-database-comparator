@@ -42,6 +42,7 @@ Produkčné overenie:
 
 ```powershell
 npm run lint
+npm run test
 npm run build
 ```
 
@@ -77,6 +78,26 @@ https://www.csfd.cz/hledat/?q=Potopa%202025
 ```
 
 Následne cez Cheerio vyberie odkazy obsahujúce `/film/`, vypočíta skóre podľa názvu a roku a vráti najlepšieho kandidáta.
+
+Ak chceš API route chrániť na Verceli, nastav environment premennú:
+
+```text
+CSFD_API_TOKEN=dlhy-interny-token
+```
+
+Používateľ potom zadá rovnaký token do poľa Interný API token v aplikácii. Bez tejto premennej ostáva endpoint otvorený pre lokálny vývoj.
+
+## Párovanie a kontrola kvality
+
+Aplikácia neberie prvý výsledok naslepo. Endpoint vracia top kandidátov zo ČSFD vrátane skóre. Ak sú prví kandidáti príliš podobní, riadok sa označí ako `Na kontrolu` a používateľ musí vybrať správny link.
+
+Export obsahuje aj audit metadata:
+
+```text
+Status, Párované cez, Skóre zhody, Nájdený názov, Nájdený rok, Počet kandidátov, Poznámka
+```
+
+Vďaka tomu vieš spätne rozlíšiť automatický match, ručné doplnenie a výber z kandidátov.
 
 ## GitHub push
 
