@@ -1,136 +1,95 @@
 import Papa from "papaparse";
-import type { MovieRow } from "@/lib/types";
+import type { MovieRow } from "./types";
 
-export type CsvParseSummary = {
-  rows: MovieRow[];
-  warnings: string[];
-  invalidRows: number;
-  skippedHeader: boolean;
-};
+export function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-export function parseMovieCsv(
-  file: File,
-  skipFirstRow: boolean
-): Promise<CsvParseSummary> {
+export function parseMovieCsv(file: File, skipFirstRow: boolean): Promise<MovieRow[]> {
   return new Promise((resolve, reject) => {
     Papa.parse<string[]>(file, {
       skipEmptyLines: true,
-      complete: (result) => {
-        const data = result.data;
-        const skippedHeader = skipFirstRow || looksLikeHeader(data[0] ?? []);
-        const warnings: string[] = [];
-        const rows = data
-          .slice(skippedHeader ? 1 : 0)
-          .map((columns, index) =>
-            toMovieRow(columns, index, index + 1 + (skippedHeader ? 1 : 0), warnings)
-          )
-          .filter((row): row is MovieRow => Boolean(row));
-        const invalidRows = rows.filter((row) => row.status === "invalid").length;
-
-        resolve({ rows, warnings, invalidRows, skippedHeader });
+      complete(results) {
+        try {
+          const data = skipFirstRow ? results.data.slice(1) : results.data;
+          const rows: MovieRow[] = data.map((cols, index) => {
+            const rand = Math.random().toString(36).slice(2, 7);
+            return {
+              localId: `${Date.now()}-${index}-${cols[1] ?? ""}-${rand}`,
+              orderNumber: (cols[0] ?? "").trim(),
+              tmdbId: (cols[1] ?? "").trim(),
+              year: (cols[2] ?? "").trim(),
+              title: (cols[3] ?? "").trim(),
+              tmdbLink: (cols[4] ?? "").trim(),
+              csfdLink: (cols[5] ?? "").trim(),
+              csfdRating: (cols[6] ?? "").trim(),
+              status: (cols[5] ?? "").trim() ? "matched" : "idle"
+            };
+          });
+          resolve(rows);
+        } catch (err) {
+          reject(err);
+        }
       },
-      error: (error) => reject(error)
+      error(err) {
+        reject(new Error(err.message));
+      }
     });
   });
 }
 
-function toMovieRow(
-  columns: string[],
-  index: number,
-  rowNumber: number,
-  warnings: string[]
-): MovieRow | null {
-  const [orderNumber, tmdbId, year, title, tmdbLink] = columns.map((value) =>
-    String(value ?? "").trim()
-  );
-
-  if (!tmdbId && !year && !title) {
-    return null;
-  }
-
-  const row: MovieRow = {
-    localId: `${Date.now()}-${index}-${tmdbId || title}`,
-    rowNumber,
-    orderNumber: orderNumber ?? "",
-    tmdbId: tmdbId ?? "",
-    year: year ?? "",
-    title: title ?? "",
-    tmdbLink: tmdbLink ?? "",
-    csfdLink: "",
-    status: "idle",
-    matchedBy: "none",
-    candidates: []
-  };
-
-  const rowWarnings = validateMovieRow(row);
-
-  if (rowWarnings.length) {
-    row.status = "invalid";
-    row.message = rowWarnings.join(" ");
-    warnings.push(`Riadok ${rowNumber}: ${row.message}`);
-  }
-
-  return row;
+export function parseMovieJson(file: File): Promise<MovieRow[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const raw = JSON.parse(e.target?.result as string) as Record<string, string>[];
+        const rows: MovieRow[] = raw.map((item, index) => {
+          const rand = Math.random().toString(36).slice(2, 7);
+          return {
+            localId: `json-${Date.now()}-${index}-${rand}`,
+            orderNumber: String(item.orderNumber ?? ""),
+            tmdbId: String(item.tmdbId ?? ""),
+            year: String(item.year ?? ""),
+            title: String(item.title ?? ""),
+            tmdbLink: String(item.tmdbLink ?? ""),
+            csfdLink: String(item.csfdLink ?? ""),
+            csfdRating: String(item.csfdRating ?? ""),
+            status: (item.status as MovieRow["status"]) ?? (item.csfdLink ? "matched" : "idle"),
+            message: item.message ? String(item.message) : undefined
+          };
+        });
+        resolve(rows);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = () => reject(new Error("Chyba pri čítaní súboru."));
+    reader.readAsText(file);
+  });
 }
 
-export function movieRowsToCsv(rows: MovieRow[]) {
-  return Papa.unparse(
-    rows.map((row) => ({
-      "Poradové číslo": row.orderNumber,
-      "TMDb ID": row.tmdbId,
-      Rok: row.year,
-      "Názov filmu": row.title,
-      "TMDb Link": row.tmdbLink,
-      "ČSFD Link": row.csfdLink,
-      Status: row.status,
-      "Párované cez": row.matchedBy,
-      "Skóre zhody": row.matchScore ?? "",
-      "Nájdený názov": row.matchedTitle ?? "",
-      "Nájdený rok": row.matchedYear ?? "",
-      "Počet kandidátov": row.candidates.length,
-      Poznámka: row.message ?? ""
-    }))
-  );
+export function movieRowsToCsv(rows: MovieRow[]): string {
+  const header = ["#", "TMDb ID", "Rok", "Názov", "TMDb Link", "ČSFD Link", "ČSFD Hodnotenie"];
+  const dataRows = rows.map((r) => [
+    r.orderNumber,
+    r.tmdbId,
+    r.year,
+    r.title,
+    r.tmdbLink,
+    r.csfdLink,
+    r.csfdRating
+  ]);
+  const csv = Papa.unparse([header, ...dataRows]);
+  return "\uFEFF" + csv; // UTF-8 BOM pre Excel
 }
 
-export function downloadTextFile(filename: string, text: string, mimeType: string) {
-  const blob = new Blob([text], { type: mimeType });
+export function downloadTextFile(filename: string, content: string, mimeType: string): void {
+  const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
   URL.revokeObjectURL(url);
-}
-
-function looksLikeHeader(columns: string[]) {
-  const joined = columns.join(" ").toLowerCase();
-
-  return (
-    joined.includes("tmdb") ||
-    joined.includes("názov") ||
-    joined.includes("nazov") ||
-    joined.includes("rok")
-  );
-}
-
-function validateMovieRow(row: MovieRow) {
-  const warnings: string[] = [];
-
-  if (!row.title) {
-    warnings.push("Chýba názov filmu.");
-  }
-
-  if (!row.year || !/^(19|20)\d{2}$/.test(row.year)) {
-    warnings.push("Rok musí byť vo formáte YYYY.");
-  }
-
-  if (!row.tmdbId) {
-    warnings.push("Chýba TMDb ID.");
-  }
-
-  return warnings;
 }

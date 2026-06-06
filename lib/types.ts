@@ -1,13 +1,4 @@
-export type MatchStatus =
-  | "idle"
-  | "loading"
-  | "matched"
-  | "review"
-  | "not_found"
-  | "invalid"
-  | "error";
-
-export type MatchSource = "none" | "auto" | "manual" | "candidate";
+export type MatchStatus = "idle" | "loading" | "matched" | "not_found" | "error";
 
 export type CsfdCandidate = {
   title: string;
@@ -18,19 +9,14 @@ export type CsfdCandidate = {
 
 export type MovieRow = {
   localId: string;
-  rowNumber: number;
   orderNumber: string;
   tmdbId: string;
   year: string;
   title: string;
   tmdbLink: string;
   csfdLink: string;
+  csfdRating: string;
   status: MatchStatus;
-  matchedBy: MatchSource;
-  matchScore?: number;
-  matchedTitle?: string;
-  matchedYear?: string | null;
-  candidates: CsfdCandidate[];
   message?: string;
 };
 
@@ -39,9 +25,14 @@ export type CsfdSearchResponse = {
   url: string | null;
   title?: string;
   year?: string | null;
+  rating?: string;
   score?: number;
   cached?: boolean;
   ambiguous?: boolean;
   candidates?: CsfdCandidate[];
   error?: string;
 };
+
+export type StatusFilter = "all" | MatchStatus;
+
+export type RatingFilter = "all" | "none" | "low" | "mid" | "high";

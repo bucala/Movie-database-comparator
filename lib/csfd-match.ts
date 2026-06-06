@@ -1,11 +1,11 @@
 import * as cheerio from "cheerio";
-import type { CsfdCandidate } from "@/lib/types";
+import type { CsfdCandidate } from "./types";
 
 export const CSFD_BASE_URL = "https://www.csfd.cz";
 export const AUTO_MATCH_THRESHOLD = 45;
 export const AMBIGUOUS_SCORE_GAP = 5;
 
-export function buildCsfdSearchUrl(title: string, year: string) {
+export function buildCsfdSearchUrl(title: string, year: string): string {
   const query = [title, year].filter(Boolean).join(" ");
   return `${CSFD_BASE_URL}/hledat/?q=${encodeURIComponent(query)}`;
 }
@@ -17,22 +17,32 @@ export function extractCandidates(
 ): CsfdCandidate[] {
   const $ = cheerio.load(html);
   const byUrl = new Map<string, CsfdCandidate>();
+  const searchSections = $(".search-list-result, #snippet-search-films, .box-films, section.box");
+  const container = searchSections.length ? searchSections : $("body");
 
-  $('a[href*="/film/"]').each((_, element) => {
+  container.find('a[href*="/film/"]').each((_, element) => {
     const anchor = $(element);
     const href = anchor.attr("href");
 
-    if (!href) {
+    if (!href || /\/(recenze|komentare|galerie|zpravy|forum|zive)\//.test(href)) {
       return;
     }
 
     const absoluteUrl = normalizeCsfdUrl(href);
-    const containerText = anchor.closest("li, article, .box, .search-list, .content").text();
-    const rawText = `${anchor.text()} ${containerText}`.replace(/\s+/g, " ").trim();
-    const title = cleanCandidateTitle(anchor.text() || rawText);
-    const year = rawText.match(/\b(19|20)\d{2}\b/)?.[0] ?? null;
 
-    if (!title || byUrl.has(absoluteUrl)) {
+    if (byUrl.has(absoluteUrl)) {
+      return;
+    }
+
+    const parentText = anchor
+      .closest("li, article, .film, .search-list-item")
+      .text()
+      .replace(/\s+/g, " ")
+      .trim();
+    const title = cleanCandidateTitle(anchor.text().trim());
+    const year = parentText.match(/\b(19|20)\d{2}\b/)?.[0] ?? null;
+
+    if (!title || title.length < 2) {
       return;
     }
 
@@ -49,11 +59,11 @@ export function extractCandidates(
     .sort((a, b) => b.score - a.score);
 }
 
-export function getBestCandidate(candidates: CsfdCandidate[]) {
+export function getBestCandidate(candidates: CsfdCandidate[]): CsfdCandidate | null {
   return candidates[0] ?? null;
 }
 
-export function isAmbiguousCandidates(candidates: CsfdCandidate[]) {
+export function isAmbiguousCandidates(candidates: CsfdCandidate[]): boolean {
   const best = candidates[0];
   const second = candidates[1];
 
@@ -64,15 +74,23 @@ export function isAmbiguousCandidates(candidates: CsfdCandidate[]) {
   return best.score - second.score <= AMBIGUOUS_SCORE_GAP;
 }
 
-export function normalizeCsfdUrl(href: string) {
+export function normalizeCsfdUrl(href: string): string {
   const absolute = href.startsWith("http") ? href : `${CSFD_BASE_URL}${href}`;
-  const url = new URL(absolute);
-  const path = url.pathname.endsWith("/") ? url.pathname : `${url.pathname}/`;
-  const detailPath = path.includes("/recenze/")
-    ? path
-    : `${path.replace(/\/(prehled\/)?$/, "/")}recenze/`;
 
-  return `${CSFD_BASE_URL}${detailPath}`;
+  try {
+    const url = new URL(absolute);
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    const filmIndex = pathParts.indexOf("film");
+
+    if (filmIndex === -1) {
+      return absolute;
+    }
+
+    const cleanPath = `/${pathParts.slice(0, filmIndex + 2).join("/")}/`;
+    return `${CSFD_BASE_URL}${cleanPath}`;
+  } catch {
+    return absolute;
+  }
 }
 
 export function scoreCandidate(
@@ -80,10 +98,9 @@ export function scoreCandidate(
   candidateYear: string | null,
   wantedTitle: string,
   wantedYear: string
-) {
+): number {
   const candidate = normalizeText(candidateTitle);
   const wanted = normalizeText(wantedTitle);
-
   let score = 0;
 
   if (candidate === wanted) {
@@ -103,7 +120,7 @@ export function scoreCandidate(
   return Math.round(score);
 }
 
-export function normalizeText(value: string) {
+export function normalizeText(value: string): string {
   return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -112,24 +129,19 @@ export function normalizeText(value: string) {
     .trim();
 }
 
-function cleanCandidateTitle(value: string) {
-  return value
-    .replace(/\s+/g, " ")
-    .replace(/\(\d{4}\)/g, "")
-    .replace(/^\s*Film\s*/i, "")
-    .trim();
+function cleanCandidateTitle(value: string): string {
+  return value.replace(/\s+/g, " ").replace(/\(\d{4}\)/g, "").replace(/^\s*Film\s*/i, "").trim();
 }
 
-function similarityScore(a: string, b: string) {
+function similarityScore(a: string, b: string): number {
   if (!a || !b) {
     return 0;
   }
 
-  const distance = levenshteinDistance(a, b);
-  return 1 - distance / Math.max(a.length, b.length);
+  return 1 - levenshteinDistance(a, b) / Math.max(a.length, b.length);
 }
 
-function levenshteinDistance(a: string, b: string) {
+function levenshteinDistance(a: string, b: string): number {
   const matrix = Array.from({ length: b.length + 1 }, (_, row) => [row]);
 
   for (let column = 0; column <= a.length; column += 1) {
@@ -138,11 +150,11 @@ function levenshteinDistance(a: string, b: string) {
 
   for (let row = 1; row <= b.length; row += 1) {
     for (let column = 1; column <= a.length; column += 1) {
-      const substitutionCost = a[column - 1] === b[row - 1] ? 0 : 1;
+      const cost = a[column - 1] === b[row - 1] ? 0 : 1;
       matrix[row][column] = Math.min(
         matrix[row - 1][column] + 1,
         matrix[row][column - 1] + 1,
-        matrix[row - 1][column - 1] + substitutionCost
+        matrix[row - 1][column - 1] + cost
       );
     }
   }

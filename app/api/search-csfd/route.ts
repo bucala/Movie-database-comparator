@@ -1,3 +1,4 @@
+import * as cheerio from "cheerio";
 import { NextResponse } from "next/server";
 import {
   AUTO_MATCH_THRESHOLD,
@@ -8,9 +9,12 @@ import {
 } from "@/lib/csfd-match";
 import type { CsfdSearchResponse } from "@/lib/types";
 
+const MAX_TITLE_LENGTH = 200;
+
 type SearchRequest = {
   title?: string;
   year?: string | number;
+  skipRating?: boolean;
 };
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -20,22 +24,27 @@ const searchCache = new Map<string, { expiresAt: number; payload: CsfdSearchResp
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const FETCH_HEADERS = {
+  accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "accept-language": "sk-SK,sk;q=0.9,cs;q=0.8,en;q=0.7",
+  "user-agent":
+    "Mozilla/5.0 (compatible; MovieDatabaseComparator/0.4; +https://github.com/bucala/Movie-database-comparator)"
+};
+
 export async function POST(request: Request) {
   try {
     if (!isAuthorized(request)) {
       return NextResponse.json(
-        {
-          found: false,
-          url: null,
-          error: "API endpoint je chránený. Zadaj interný token."
-        },
+        { found: false, url: null, error: "API endpoint je chránený. Zadaj interný token." },
         { status: 401 }
       );
     }
 
     const body = (await request.json()) as SearchRequest;
-    const title = String(body.title ?? "").trim();
-    const year = String(body.year ?? "").trim();
+    const title = String(body.title ?? "").trim().slice(0, MAX_TITLE_LENGTH);
+    const rawYear = String(body.year ?? "").trim();
+    const skipRating = body.skipRating === true;
+    const year = /^(188[8-9]|18[9-9]\d|19\d{2}|20[0-2]\d|2030)$/.test(rawYear) ? rawYear : "";
 
     if (!title) {
       return NextResponse.json(
@@ -44,7 +53,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const cacheKey = `${title.toLocaleLowerCase("sk-SK")}::${year}`;
+    const cacheKey = `${title.toLocaleLowerCase("sk-SK")}::${year}::${skipRating ? "skip" : "rating"}`;
     const cached = readCache(cacheKey);
 
     if (cached) {
@@ -55,22 +64,13 @@ export async function POST(request: Request) {
 
     const response = await fetch(searchUrl, {
       cache: "no-store",
-      headers: {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "accept-language": "sk-SK,sk;q=0.9,cs;q=0.8,en;q=0.7",
-        "user-agent":
-          "Mozilla/5.0 (compatible; MovieDatabaseComparator/0.1; +https://vercel.app)"
-      },
-      next: { revalidate: 0 }
+      headers: FETCH_HEADERS,
+      signal: AbortSignal.timeout(8000)
     });
 
     if (!response.ok) {
       return NextResponse.json(
-        {
-          found: false,
-          url: null,
-          error: `ČSFD vrátilo HTTP ${response.status}. Skús to neskôr alebo vlož link manuálne.`
-        },
+        { found: false, url: null, error: `ČSFD vrátilo HTTP ${response.status}.` },
         { status: 502 }
       );
     }
@@ -93,6 +93,8 @@ export async function POST(request: Request) {
       return NextResponse.json(payload);
     }
 
+    const rating = skipRating ? null : await fetchCsfdRating(bestCandidate.url);
+
     const payload: CsfdSearchResponse = {
       found: true,
       url: bestCandidate.url,
@@ -101,6 +103,7 @@ export async function POST(request: Request) {
       score: bestCandidate.score,
       cached: false,
       ambiguous,
+      ...(rating ? { rating } : {}),
       candidates: candidates.slice(0, 5)
     };
 
@@ -108,11 +111,7 @@ export async function POST(request: Request) {
     return NextResponse.json(payload);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Neznáma chyba.";
-
-    return NextResponse.json(
-      { found: false, url: null, error: message },
-      { status: 500 }
-    );
+    return NextResponse.json({ found: false, url: null, error: message }, { status: 500 });
   }
 }
 
@@ -157,4 +156,42 @@ function writeCache(cacheKey: string, payload: CsfdSearchResponse) {
     expiresAt: Date.now() + CACHE_TTL_MS,
     payload
   });
+}
+
+async function fetchCsfdRating(filmUrl: string): Promise<string | null> {
+  try {
+    const res = await fetch(filmUrl, {
+      cache: "no-store",
+      headers: FETCH_HEADERS,
+      signal: AbortSignal.timeout(6000)
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const $ = cheerio.load(html);
+
+    const selectors = [
+      ".film-rating-average",
+      ".average",
+      "[class*='rating-average']",
+      ".film-header-name .rating",
+      ".rating-average"
+    ];
+
+    for (const sel of selectors) {
+      const text = $(sel).first().text().trim();
+      const match = text.match(/(\d{1,3})\s*%/);
+      if (match) return `${match[1]}%`;
+    }
+
+    const headerText = $(".film-header, .box-header-rating, .film-info").first().text();
+    const fallbackMatch = headerText.match(/(\d{1,3})\s*%/);
+    if (fallbackMatch) {
+      const val = parseInt(fallbackMatch[1]);
+      if (val >= 1 && val <= 100) return `${val}%`;
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
 }

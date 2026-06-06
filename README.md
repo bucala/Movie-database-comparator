@@ -1,157 +1,106 @@
-# Filmová databáza - TMDb to ČSFD matcher
+# 🎬 Movie Database Comparator
 
-Interný Next.js nástroj na načítanie CSV exportu z TMDb, postupné vyhľadanie zodpovedajúcich ČSFD filmov a export obohatených dát.
+[![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue?logo=typescript)](https://www.typescriptlang.org)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38bdf8?logo=tailwindcss)](https://tailwindcss.com)
+[![Version](https://img.shields.io/badge/verzia-0.4.0-brightgreen)](#changelog)
 
-Odporúčaný deployment model: samostatná interná Vercel aplikácia napojená na tento GitHub repozitár. Hlavná Filmová databáza na ňu môže odkazovať ako na admin nástroj; matcher logika je oddelená v `lib/csfd-match.ts`, takže sa dá neskôr presunúť do monorepa alebo vložiť ako subaplikácia.
+Webová aplikácia na párovanie TMDb exportu s ČSFD odkazmi a hodnoteniami. Nahraj CSV z Excelu, spusti automatické vyhľadávanie a získaj ČSFD linky aj % hodnotenia filmov v jednom exporte.
 
-## Architektúra
+Odporúčaný deployment model: samostatná interná Vercel aplikácia napojená na tento GitHub repozitár. Hlavná Filmová databáza na ňu môže odkazovať ako na admin nástroj; matcher jadro je oddelené v `lib/csfd-match.ts`, takže sa dá neskôr presunúť do monorepa alebo vložiť ako subaplikácia.
 
-```text
-app/
-  api/
-    search-csfd/
-      route.ts              # Serverless API route: fetch ČSFD + Cheerio parsing
-  globals.css               # Tailwind base štýly
-  layout.tsx                # Root layout a metadata
-  page.tsx                  # Hlavná obrazovka
-components/
-  movie-matcher-table.tsx   # Upload CSV, tabuľka, párovanie, manuálne odkazy, export
-lib/
-  csv.ts                    # Papaparse import/export helpery
-  types.ts                  # Zdieľané typy
-eslint.config.mjs
-next.config.mjs
-package.json
-postcss.config.mjs
-tailwind.config.ts
-tsconfig.json
-```
+## ✨ Funkcie
 
-## Lokálne spustenie
+| Funkcia | Popis |
+|---|---|
+| 📤 Upload CSV | Nahratie exportu z TMDb (Excel/CSV) |
+| 📥 Import JSON | Obnovenie predchádzajúcej session zo zálohy |
+| 🔍 Automatické párovanie | Server-side vyhľadávanie na ČSFD pomocou Levenshtein algoritmu |
+| ⭐ ČSFD Hodnotenie | Automatické načítanie % hodnotenia + ručná oprava kliknutím |
+| 📊 Filtre | Filter podľa stavu párovania aj podľa % hodnotenia |
+| ⏭ Ignorovať hodnotenie | Preškrtnúť scraping hodnotenia (rýchlejšie párovanie) |
+| ✏️ Manuálna editácia | Manuálne zadanie ČSFD linku alebo hodnotenia |
+| 📁 Export CSV / JSON | Export obohatených dát s ČSFD linkami a hodnoteniami |
+| 🌙 Dark / Light režim | Prepínanie témy, uloženie do localStorage |
+| 📈 Progress bar | Vizualizácia priebehu párovania |
 
-```powershell
+## 🚀 Spustenie
+
+```bash
 npm install
 npm run dev
 ```
 
-Aplikácia potom beží na:
-
-```text
-http://localhost:3000
-```
+Aplikácia beží na [http://localhost:3000](http://localhost:3000).
 
 Produkčné overenie:
 
-```powershell
+```bash
 npm run lint
 npm run test
 npm run build
 ```
 
-## Vstupný CSV formát
+## 🔐 Interný API token
 
-CSV je bez hlavičky, prípadne môžeš zaškrtnúť ignorovanie prvého riadku.
-
-```text
-Poradové číslo, TMDb ID, Rok, Názov filmu, TMDb Link
-1715,1567441,2025,Potopa,https://www.themoviedb.org/movie/1567441-potopa
-```
-
-## Backend endpoint
-
-Frontend volá:
-
-```http
-POST /api/search-csfd
-Content-Type: application/json
-```
-
-```json
-{
-  "title": "Potopa",
-  "year": "2025"
-}
-```
-
-Endpoint vyhľadá ČSFD cez:
-
-```text
-https://www.csfd.cz/hledat/?q=Potopa%202025
-```
-
-Následne cez Cheerio vyberie odkazy obsahujúce `/film/`, vypočíta skóre podľa názvu a roku a vráti najlepšieho kandidáta.
-
-Ak chceš API route chrániť na Verceli, nastav environment premennú:
+Ak chceš chrániť `/api/search-csfd` na Verceli, nastav environment premennú:
 
 ```text
 CSFD_API_TOKEN=dlhy-interny-token
 ```
 
-Používateľ potom zadá rovnaký token do poľa Interný API token v aplikácii. Bez tejto premennej ostáva endpoint otvorený pre lokálny vývoj.
+Používateľ potom zadá rovnaký token do interného token poľa v aplikácii. Bez tejto premennej ostáva endpoint otvorený pre lokálny vývoj.
 
-## Párovanie a kontrola kvality
+## 📂 Štruktúra projektu
 
-Aplikácia neberie prvý výsledok naslepo. Endpoint vracia top kandidátov zo ČSFD vrátane skóre. Ak sú prví kandidáti príliš podobní, riadok sa označí ako `Na kontrolu` a používateľ musí vybrať správny link.
-
-Export obsahuje aj audit metadata:
-
-```text
-Status, Párované cez, Skóre zhody, Nájdený názov, Nájdený rok, Počet kandidátov, Poznámka
+```
+app/
+  api/search-csfd/route.ts   # Server API – vyhľadávanie + scraping hodnotenia
+  layout.tsx                  # Root layout s anti-flash theme skriptom
+  page.tsx                    # Hlavná stránka
+components/
+  movie-matcher-table.tsx     # Hlavný UI komponent (tabuľka, toolbar)
+lib/
+  csv.ts                      # CSV/JSON parsing a export
+  theme.ts                    # Dark/light mode logika
+  types.ts                    # TypeScript typy
 ```
 
-Vďaka tomu vieš spätne rozlíšiť automatický match, ručné doplnenie a výber z kandidátov.
+## 📋 Formát CSV
 
-## GitHub push
+Očakávaný formát vstupného CSV (bez hlavičky alebo s `Ignorovať prvý riadok`):
 
-Tento projekt je pripravený pre repozitár:
-
-```text
-https://github.com/bucala/Movie-database-comparator.git
+```
+#, TMDb ID, Rok, Názov, TMDb Link, ČSFD Link (voliteľné), Hodnotenie (voliteľné)
 ```
 
-Ak remote ešte nie je nastavený:
+## 📝 Changelog
 
-```powershell
-git remote add origin https://github.com/bucala/Movie-database-comparator.git
-git branch -M main
-git add .
-git commit -m "Build Next.js CSFD movie matching app"
-git push -u origin main
-```
+### v0.4.0 — 2026-05-31
+- ✨ Filter **Hodnotenie** — dropdown s rozsahmi: Všetky / Bez hodnotenia / ≥70% / 50–69% / <50%
+- ✨ **Ručná úprava hodnotenia** — kliknutím na badge sa otvorí inline input (0–100), potvrdenie Enterom alebo kliknutím inam
+- ✨ **Ignorovať hodnotenie** — zaškrkávatko v Nastaveniach; keď zapínaté: stĺpec Hodnotenie sa skryje, filter hodnotenia zmizne, API preskakuje scraping (rýchlejšie párovanie)
+- 🧹 Refaktor SVG ikon do pomocných komponentov (`UploadIcon`, `GearIcon`, `PencilIcon`, ...)
 
-Ak už commit existuje a chceš iba nastaviť remote a pushnúť:
+### v0.3.0 — 2026-05-31
+- ✨ Nový stĺpec **ČSFD Hodnotenie** — automaticky načítava % hodnotenie z detailovej stránky každého spárovaného filmu
+- 🎨 Farebný `RatingBadge` komponent: zelená ≥70%, oranžová 50–69%, červená <50%
+- 💾 Hodnotenie sa ukladá do CSV aj JSON exportu a načítava pri JSON importe
 
-```powershell
-git remote add origin https://github.com/bucala/Movie-database-comparator.git
-git branch -M main
-git push -u origin main
-```
+### v0.2.0 — 2026-05-30
+- ✨ Import JSON — obnovenie predchádzajúcej session
+- ✨ Filter statusov s počítadlom
+- ✨ Stĺpec `#` (poradové číslo z importu)
+- ✨ Dark / Light mode (⚙ ikona, localStorage)
+- ✨ Progress bar počas párovania
+- 🐛 Oprava `localId` kolízie
+- 🐛 UTF-8 BOM pre Excel
+- 🐛 Status `idle` po vymazaní linku
+- 🔧 Vylepšený scraper
 
-## Vercel import
-
-1. Otvor Vercel dashboard.
-2. Zvoľ Add New Project.
-3. Importuj `bucala/Movie-database-comparator`.
-4. Framework nechaj `Next.js`.
-5. Build command nechaj `next build`.
-6. Install command nechaj `npm install`.
-7. Output directory nechaj prázdny.
-8. V Environment Variables nastav `CSFD_API_TOKEN`, ak chceš chrániť API endpoint.
-9. Deploy.
-
-Po deployi token bezpečne pošli interným používateľom. Token sa neukladá do repozitára; lokálny vzor je iba v `.env.example`.
-
-## Zálohovanie podľa pravidla ver ZIP
-
-Pri vytváraní záložných buildov používaj priečinok `ver ZIP` a ZIP archív s verziou v názve.
-
-```powershell
-New-Item -ItemType Directory -Force "ver ZIP"
-Get-ChildItem -Force -Exclude ".git","node_modules",".next","ver ZIP" | Compress-Archive -DestinationPath "ver ZIP\Movie-database-comparator_v0.1.0.zip" -Force
-```
-
-Pre ďalšiu verziu zmeň iba číslo, napríklad:
-
-```text
-ver ZIP\Movie-database-comparator_v0.1.1.zip
-```
+### v0.1.0 — 2026-05-29
+- 🎉 Prvé vydanie
+- Základné CSV párovanie TMDb → ČSFD
+- Levenshtein fuzzy matching
+- Manuálna editácia linkov
+- Export CSV a JSON

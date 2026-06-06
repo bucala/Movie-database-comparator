@@ -24,7 +24,7 @@ describe("csfd matcher", () => {
   it("normalizes CSFD movie links to review URLs", () => {
     assert.equal(
       normalizeCsfdUrl("/film/1731626-potopa/prehled/"),
-      "https://www.csfd.cz/film/1731626-potopa/recenze/"
+      "https://www.csfd.cz/film/1731626-potopa/"
     );
   });
 
@@ -47,14 +47,14 @@ describe("csfd matcher", () => {
 
     assert.equal(candidates.length, 2);
     assert.equal(candidates[0].title, "Potopa");
-    assert.equal(candidates[0].url, "https://www.csfd.cz/film/1731626-potopa/recenze/");
+    assert.equal(candidates[0].url, "https://www.csfd.cz/film/1731626-potopa/");
   });
 
   it("flags candidates with near-equal scores as ambiguous", () => {
     assert.equal(
       isAmbiguousCandidates([
-        { title: "Potopa", year: "2025", url: "https://www.csfd.cz/film/1/recenze/", score: 100 },
-        { title: "Potopa", year: "2025", url: "https://www.csfd.cz/film/2/recenze/", score: 100 }
+        { title: "Potopa", year: "2025", url: "https://www.csfd.cz/film/1/", score: 100 },
+        { title: "Potopa", year: "2025", url: "https://www.csfd.cz/film/2/", score: 100 }
       ]),
       true
     );
