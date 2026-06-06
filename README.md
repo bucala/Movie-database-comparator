@@ -2,6 +2,8 @@
 
 Interný Next.js nástroj na načítanie CSV exportu z TMDb, postupné vyhľadanie zodpovedajúcich ČSFD filmov a export obohatených dát.
 
+Odporúčaný deployment model: samostatná interná Vercel aplikácia napojená na tento GitHub repozitár. Hlavná Filmová databáza na ňu môže odkazovať ako na admin nástroj; matcher logika je oddelená v `lib/csfd-match.ts`, takže sa dá neskôr presunúť do monorepa alebo vložiť ako subaplikácia.
+
 ## Architektúra
 
 ```text
@@ -134,7 +136,10 @@ git push -u origin main
 5. Build command nechaj `next build`.
 6. Install command nechaj `npm install`.
 7. Output directory nechaj prázdny.
-8. Deploy.
+8. V Environment Variables nastav `CSFD_API_TOKEN`, ak chceš chrániť API endpoint.
+9. Deploy.
+
+Po deployi token bezpečne pošli interným používateľom. Token sa neukladá do repozitára; lokálny vzor je iba v `.env.example`.
 
 ## Zálohovanie podľa pravidla ver ZIP
 
