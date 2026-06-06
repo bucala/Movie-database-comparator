@@ -19,6 +19,14 @@
   --ember: #b42318;
   --mist: #eef3f7;
   --shadow: 0 12px 40px rgba(23, 32, 42, 0.08);
+  --badge-success-bg: #d1fae5;
+  --badge-success-text: #065f46;
+  --badge-danger-bg: #fee2e2;
+  --badge-danger-text: #991b1b;
+  --badge-warning-bg: #fef3c7;
+  --badge-warning-text: #92400e;
+  --badge-info-bg: #e0f2fe;
+  --badge-info-text: #0c4a6e;
 }
 
 /* ── Dark mode ── */
@@ -37,6 +45,14 @@
   --ember: #f87171;
   --mist: #1e2630;
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  --badge-success-bg: #064e3b;
+  --badge-success-text: #6ee7b7;
+  --badge-danger-bg: #450a0a;
+  --badge-danger-text: #fca5a5;
+  --badge-warning-bg: #451a03;
+  --badge-warning-text: #fcd34d;
+  --badge-info-bg: #0c4a6e;
+  --badge-info-text: #7dd3fc;
 }
 
 * {

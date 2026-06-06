@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import * as cheerio from "cheerio";
 import { NextResponse } from "next/server";
 import {
@@ -21,6 +22,10 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const CACHE_MAX_ITEMS = 500;
 const searchCache = new Map<string, { expiresAt: number; payload: CsfdSearchResponse }>();
 
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 30;
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -37,6 +42,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { found: false, url: null, error: "API endpoint je chránený. Zadaj interný token." },
         { status: 401 }
+      );
+    }
+
+    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    if (isRateLimited(clientIp)) {
+      return NextResponse.json(
+        { found: false, url: null, error: "Príliš veľa požiadaviek. Skús neskôr." },
+        { status: 429 }
       );
     }
 
@@ -115,6 +128,12 @@ export async function POST(request: Request) {
   }
 }
 
+function timingSafeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const encoder = new TextEncoder();
+  return timingSafeEqual(encoder.encode(a), encoder.encode(b));
+}
+
 function isAuthorized(request: Request) {
   const expectedToken = process.env.CSFD_API_TOKEN;
 
@@ -125,7 +144,8 @@ function isAuthorized(request: Request) {
   const headerToken = request.headers.get("x-api-token");
   const bearerToken = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
 
-  return headerToken === expectedToken || bearerToken === expectedToken;
+  return (headerToken !== null && timingSafeCompare(headerToken, expectedToken))
+    || (bearerToken !== undefined && bearerToken !== null && timingSafeCompare(bearerToken, expectedToken));
 }
 
 function readCache(cacheKey: string) {
@@ -156,6 +176,19 @@ function writeCache(cacheKey: string, payload: CsfdSearchResponse) {
     expiresAt: Date.now() + CACHE_TTL_MS,
     payload
   });
+}
+
+function isRateLimited(clientIp: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(clientIp);
+
+  if (!entry || entry.resetAt < now) {
+    rateLimitMap.set(clientIp, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+
+  entry.count += 1;
+  return entry.count > RATE_LIMIT_MAX;
 }
 
 async function fetchCsfdRating(filmUrl: string): Promise<string | null> {
