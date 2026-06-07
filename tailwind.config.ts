@@ -9,17 +9,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#1a1f2b",
-        mist: "#e8ecf2",
-        spruce: "#0f766e",
-        accent: "#d4a843",
-        ember: "#b42318"
+        ink: "#f8fafc",
+        mist: "#182232",
+        spruce: "#facc15",
+        ember: "#fb7185"
       },
       boxShadow: {
-        soft: "0 8px 32px rgba(20, 25, 35, 0.07)"
-      },
-      borderRadius: {
-        xl: "0.75rem"
+        soft: "0 16px 48px rgba(0, 0, 0, 0.42)"
       }
     }
   },
