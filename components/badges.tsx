@@ -10,9 +10,9 @@ const statusLabels: Record<MatchStatus, string> = {
 
 export function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg px-3 py-2.5" style={{ background: "var(--surface-2)", border: "1px dashed var(--border-dashed)" }}>
-      <div className="text-lg font-bold tabular-nums" style={{ color: "var(--accent)" }}>{value}</div>
-      <div className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--text-faint)" }}>{label}</div>
+    <div className="rounded-md px-3 py-2" style={{ background: "var(--mist)" }}>
+      <div className="text-lg font-semibold tabular-nums" style={{ color: "var(--ink)" }}>{value}</div>
+      <div className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</div>
     </div>
   );
 }
