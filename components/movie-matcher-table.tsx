@@ -696,8 +696,8 @@ export function MovieMatcherTable() {
                       )}
                     </td>
                   </tr>
-                  );
-                })
+                ))
+
               ) : (
                 <tr>
                   <td className="px-4 py-16 text-center" colSpan={colSpanTotal} style={{ color: "var(--text-faint)" }}>
