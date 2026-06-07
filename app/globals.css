@@ -2,23 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Light mode (default) ── */
+/* ── Default Filmy theme ── */
 :root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #070a0f;
+  --surface: #10151d;
+  --surface-2: #151d29;
+  --border: #344154;
+  --text: #f8fafc;
+  --text-muted: #d5deea;
+  --text-faint: #9aa9bd;
+  --ink: #f8fafc;
+  --spruce: #facc15;
+  --spruce-hover: #fbbf24;
+  --accent-contrast: #090b10;
+  --ember: #fb7185;
+  --mist: #182232;
+  --shadow: 0 16px 48px rgba(0, 0, 0, 0.42);
+  --badge-success-bg: #064e3b;
+  --badge-success-text: #86efac;
+  --badge-danger-bg: #450a0a;
+  --badge-danger-text: #fca5a5;
+  --badge-warning-bg: #451a03;
+  --badge-warning-text: #fcd34d;
+  --badge-info-bg: #0c4a6e;
+  --badge-info-text: #7dd3fc;
+}
+
+/* ── Light mode ── */
 [data-theme="light"] {
   color-scheme: light;
-  --bg: #f7f9fb;
+  --bg: #fff8db;
   --surface: #ffffff;
-  --surface-2: #f0f4f8;
-  --border: #e2e8f0;
-  --text: #17202a;
-  --text-muted: #64748b;
-  --text-faint: #94a3b8;
-  --ink: #17202a;
-  --spruce: #0f766e;
-  --spruce-hover: #0d6560;
+  --surface-2: #fff2b3;
+  --border: #d7b840;
+  --text: #161616;
+  --text-muted: #3f3f46;
+  --text-faint: #71717a;
+  --ink: #161616;
+  --spruce: #ca8a04;
+  --spruce-hover: #a16207;
+  --accent-contrast: #ffffff;
   --ember: #b42318;
-  --mist: #eef3f7;
-  --shadow: 0 12px 40px rgba(23, 32, 42, 0.08);
+  --mist: #fff0a3;
+  --shadow: 0 12px 36px rgba(22, 22, 22, 0.12);
   --badge-success-bg: #d1fae5;
   --badge-success-text: #065f46;
   --badge-danger-bg: #fee2e2;
@@ -27,32 +55,6 @@
   --badge-warning-text: #92400e;
   --badge-info-bg: #e0f2fe;
   --badge-info-text: #0c4a6e;
-}
-
-/* ── Dark mode ── */
-[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #0f1318;
-  --surface: #181e26;
-  --surface-2: #1e2630;
-  --border: #2d3748;
-  --text: #e2e8f0;
-  --text-muted: #94a3b8;
-  --text-faint: #4a5568;
-  --ink: #e2e8f0;
-  --spruce: #2dd4bf;
-  --spruce-hover: #14b8a6;
-  --ember: #f87171;
-  --mist: #1e2630;
-  --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
-  --badge-success-bg: #064e3b;
-  --badge-success-text: #6ee7b7;
-  --badge-danger-bg: #450a0a;
-  --badge-danger-text: #fca5a5;
-  --badge-warning-bg: #451a03;
-  --badge-warning-text: #fcd34d;
-  --badge-info-bg: #0c4a6e;
-  --badge-info-text: #7dd3fc;
 }
 
 * {

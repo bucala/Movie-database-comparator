@@ -15,6 +15,9 @@ import { EmptyStateIcon, GearIcon, MoonIcon, PencilIcon, SunIcon, UploadIcon } f
 
 const MATCH_DELAY_MS = 950;
 
+type SortKey = "tmdbId" | "csfdId";
+type SortDirection = "asc" | "desc";
+
 const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "Všetky" },
   { value: "matched", label: "Spárované" },
@@ -48,6 +51,49 @@ function matchesRatingFilter(row: MovieRow, filter: RatingFilter): boolean {
   return true;
 }
 
+function extractCsfdId(link: string): string {
+  return link.match(/\/film\/(\d+)/)?.[1] ?? "";
+}
+
+function normalizeSearchValue(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function rowMatchesSearch(row: MovieRow, query: string): boolean {
+  const normalizedQuery = normalizeSearchValue(query.trim());
+  if (!normalizedQuery) return true;
+
+  const csfdId = extractCsfdId(row.csfdLink);
+  const haystack = [
+    row.orderNumber,
+    row.tmdbId,
+    csfdId,
+    row.title,
+    row.year,
+    row.tmdbLink,
+    row.csfdLink,
+    row.csfdRating,
+    row.status
+  ].join(" ");
+
+  return normalizeSearchValue(haystack).includes(normalizedQuery);
+}
+
+function compareIds(a: string, b: string) {
+  const aNum = Number.parseInt(a, 10);
+  const bNum = Number.parseInt(b, 10);
+  const aHasNum = Number.isFinite(aNum);
+  const bHasNum = Number.isFinite(bNum);
+
+  if (aHasNum && bHasNum) return aNum - bNum;
+  if (aHasNum) return -1;
+  if (bHasNum) return 1;
+  return a.localeCompare(b);
+}
+
 export function MovieMatcherTable() {
   const [rows, setRows] = useState<MovieRow[]>([]);
   const [skipFirstRow, setSkipFirstRow] = useState(false);
@@ -58,7 +104,11 @@ export function MovieMatcherTable() {
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>("all");
   const [apiToken, setApiToken] = useState("");
   const [showSettings, setShowSettings] = useState(false);
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>("dark");
+  const [searchDraft, setSearchDraft] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("tmdbId");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   // Oddelený lokálny draft — rows sa nemenia počas písania
   const [editingRatingId, setEditingRatingId] = useState<string | null>(null);
@@ -67,7 +117,11 @@ export function MovieMatcherTable() {
   const shouldStopRef = useRef(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setTheme(getInitialTheme()); }, []);
+  useEffect(() => {
+    const initialTheme = getInitialTheme();
+    setTheme(initialTheme);
+    applyTheme(initialTheme);
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -83,6 +137,16 @@ export function MovieMatcherTable() {
     const next: Theme = theme === "light" ? "dark" : "light";
     setTheme(next);
     applyTheme(next);
+  }
+
+  function toggleSort(nextKey: SortKey) {
+    if (sortKey === nextKey) {
+      setSortDirection((current) => current === "asc" ? "desc" : "asc");
+      return;
+    }
+
+    setSortKey(nextKey);
+    setSortDirection("asc");
   }
 
   // Otvorí edit pre daný riadok, nastaví draft na aktuálnu hodnotu (bez %)
@@ -129,9 +193,21 @@ export function MovieMatcherTable() {
     return rows.filter((r) => {
       if (statusFilter !== "all" && r.status !== statusFilter) return false;
       if (!ignoreRating && ratingFilter !== "all" && !matchesRatingFilter(r, ratingFilter)) return false;
+      if (!rowMatchesSearch(r, searchQuery)) return false;
       return true;
     });
-  }, [rows, statusFilter, ratingFilter, ignoreRating]);
+  }, [rows, statusFilter, ratingFilter, ignoreRating, searchQuery]);
+
+  const displayRows = useMemo(() => {
+    const sorted = [...filteredRows].sort((a, b) => {
+      const aValue = sortKey === "tmdbId" ? a.tmdbId : extractCsfdId(a.csfdLink);
+      const bValue = sortKey === "tmdbId" ? b.tmdbId : extractCsfdId(b.csfdLink);
+      const result = compareIds(aValue, bValue);
+      return sortDirection === "asc" ? result : -result;
+    });
+
+    return sorted;
+  }, [filteredRows, sortDirection, sortKey]);
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -146,6 +222,8 @@ export function MovieMatcherTable() {
       setFileName(file.name);
       setStatusFilter("all");
       setRatingFilter("all");
+      setSearchDraft("");
+      setSearchQuery("");
     } catch (err) {
       alert(`Chyba pri načítaní súboru: ${err instanceof Error ? err.message : "Neznáma chyba"}`);
     }
@@ -245,7 +323,7 @@ export function MovieMatcherTable() {
 
   const matchingProgress = isMatching ? progress : null;
   const showRatingCol = !ignoreRating;
-  const colSpanTotal = showRatingCol ? 8 : 7;
+  const colSpanTotal = showRatingCol ? 9 : 8;
 
   return (
     <div className="flex flex-col gap-5">
@@ -257,8 +335,8 @@ export function MovieMatcherTable() {
 
             {/* Upload CSV */}
             <label
-              className="inline-flex cursor-pointer items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold text-white transition"
-              style={{ background: "var(--ink)" }}
+              className="inline-flex cursor-pointer items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold transition"
+              style={{ background: "var(--spruce)", color: "var(--accent-contrast)" }}
               title="Nahrať CSV súbor"
             >
               <UploadIcon />
@@ -292,7 +370,7 @@ export function MovieMatcherTable() {
 
             <input
               className="min-w-56 rounded-md border px-3 py-2 text-sm outline-none transition"
-              placeholder="Interný API token"
+              placeholder="CSFD_API_TOKEN z Vercelu"
               style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
               type="password"
               value={apiToken}
@@ -384,10 +462,53 @@ export function MovieMatcherTable() {
 
       {/* Akčné tlačidlá + filtre */}
       <div className="flex flex-wrap items-center gap-3">
+        <form
+          className="flex min-w-0 flex-wrap items-center gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setSearchQuery(searchDraft);
+          }}
+        >
+          <input
+            className="min-w-64 rounded-md border px-3 py-2.5 text-sm outline-none transition"
+            placeholder="Hľadať TMDb ID, ČSFD ID, názov..."
+            style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
+            type="search"
+            value={searchDraft}
+            onChange={(event) => {
+              setSearchDraft(event.target.value);
+              if (!event.target.value) setSearchQuery("");
+            }}
+          />
+          <button
+            className="rounded-md px-4 py-2.5 text-sm font-semibold transition"
+            style={{ background: "var(--spruce)", color: "var(--accent-contrast)" }}
+            type="submit"
+          >
+            Hľadať
+          </button>
+          {searchQuery ? (
+            <button
+              className="rounded-md border px-3 py-2.5 text-sm font-semibold transition"
+              style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
+              type="button"
+              onClick={() => {
+                setSearchDraft("");
+                setSearchQuery("");
+              }}
+            >
+              Vyčistiť
+            </button>
+          ) : null}
+        </form>
+
         <button
-          className="rounded-md px-4 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed"
+          className="rounded-md px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed"
           disabled={!rows.length || isMatching}
-          style={{ background: rows.length && !isMatching ? "var(--spruce)" : "var(--text-faint)" }}
+          style={{
+            background: rows.length && !isMatching ? "var(--spruce)" : "var(--text-faint)",
+            color: rows.length && !isMatching ? "var(--accent-contrast)" : "var(--surface)"
+          }}
           type="button"
           onClick={runMatching}
         >
@@ -451,9 +572,9 @@ export function MovieMatcherTable() {
             </>
           )}
 
-          {(statusFilter !== "all" || ratingFilter !== "all") && (
+          {(statusFilter !== "all" || ratingFilter !== "all" || searchQuery) && (
             <span className="text-sm" style={{ color: "var(--text-faint)" }}>
-              {filteredRows.length} / {rows.length}
+              {displayRows.length} / {rows.length}
             </span>
           )}
         </div>
@@ -469,10 +590,27 @@ export function MovieMatcherTable() {
             <thead style={{ background: "var(--mist)" }}>
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>#</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>TMDb ID</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+                  <SortHeader
+                    activeKey={sortKey}
+                    direction={sortDirection}
+                    label="TMDb ID"
+                    sortKey="tmdbId"
+                    onSort={toggleSort}
+                  />
+                </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Názov</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Rok</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+                  <SortHeader
+                    activeKey={sortKey}
+                    direction={sortDirection}
+                    label="ČSFD ID"
+                    sortKey="csfdId"
+                    onSort={toggleSort}
+                  />
+                </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>ČSFD Link</th>
                 {showRatingCol && (
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Hodnotenie</th>
@@ -481,8 +619,11 @@ export function MovieMatcherTable() {
               </tr>
             </thead>
             <tbody>
-              {filteredRows.length ? (
-                filteredRows.map((row) => (
+              {displayRows.length ? (
+                displayRows.map((row) => {
+                  const csfdId = extractCsfdId(row.csfdLink);
+
+                  return (
                   <tr key={row.localId} className="align-top border-t" style={{ borderColor: "var(--border)" }}>
                     <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums" style={{ color: "var(--text-faint)" }}>{row.orderNumber || "—"}</td>
                     <td className="whitespace-nowrap px-4 py-3 font-medium tabular-nums" style={{ color: "var(--text)" }}>{row.tmdbId}</td>
@@ -496,6 +637,9 @@ export function MovieMatcherTable() {
                     <td className="min-w-40 px-4 py-3">
                       <StatusBadge status={row.status} />
                       {row.message ? <p className="mt-1 text-xs" style={{ color: "var(--text-faint)" }}>{row.message}</p> : null}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 font-medium tabular-nums" style={{ color: csfdId ? "var(--spruce)" : "var(--text-faint)" }}>
+                      {csfdId || "—"}
                     </td>
                     <td className="min-w-80 px-4 py-3">
                       <input
@@ -552,7 +696,8 @@ export function MovieMatcherTable() {
                       )}
                     </td>
                   </tr>
-                ))
+                  );
+                })
               ) : (
                 <tr>
                   <td className="px-4 py-16 text-center" colSpan={colSpanTotal} style={{ color: "var(--text-faint)" }}>
@@ -578,3 +723,32 @@ export function MovieMatcherTable() {
   );
 }
 
+function SortHeader({
+  activeKey,
+  direction,
+  label,
+  sortKey,
+  onSort
+}: {
+  activeKey: SortKey;
+  direction: SortDirection;
+  label: string;
+  sortKey: SortKey;
+  onSort: (key: SortKey) => void;
+}) {
+  const isActive = activeKey === sortKey;
+  const arrow = isActive ? (direction === "asc" ? "↑" : "↓") : "↕";
+
+  return (
+    <button
+      aria-label={`Radiť podľa ${label}`}
+      className="inline-flex items-center gap-1.5 uppercase tracking-wide transition hover:opacity-80"
+      style={{ color: isActive ? "var(--spruce)" : "var(--text-muted)" }}
+      type="button"
+      onClick={() => onSort(sortKey)}
+    >
+      <span>{label}</span>
+      <span aria-hidden="true" className="text-sm leading-none">{arrow}</span>
+    </button>
+  );
+}
