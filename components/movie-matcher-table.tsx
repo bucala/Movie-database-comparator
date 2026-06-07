@@ -591,8 +591,8 @@ export function MovieMatcherTable() {
               </tr>
             </thead>
             <tbody>
-              {filteredRows.length ? (
-                filteredRows.map((row, i) => (
+              {displayRows.length ? (
+                displayRows.map((row, i) => (
                   <tr
                     key={row.localId}
                     className="align-top"
@@ -665,8 +665,8 @@ export function MovieMatcherTable() {
                       )}
                     </td>
                   </tr>
-                  );
-                })
+                ))
+
               ) : (
                 <tr>
                   <td className="px-4 py-20 text-center" colSpan={colSpanTotal} style={{ color: "var(--text-faint)" }}>
