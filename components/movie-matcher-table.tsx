@@ -15,6 +15,9 @@ import { EmptyStateIcon, GearIcon, MoonIcon, PencilIcon, SunIcon, UploadIcon } f
 
 const MATCH_DELAY_MS = 950;
 
+type SortKey = "tmdbId" | "csfdId";
+type SortDirection = "asc" | "desc";
+
 const STATUS_FILTER_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "Všetky" },
   { value: "matched", label: "Spárované" },
@@ -48,6 +51,49 @@ function matchesRatingFilter(row: MovieRow, filter: RatingFilter): boolean {
   return true;
 }
 
+function extractCsfdId(link: string): string {
+  return link.match(/\/film\/(\d+)/)?.[1] ?? "";
+}
+
+function normalizeSearchValue(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function rowMatchesSearch(row: MovieRow, query: string): boolean {
+  const normalizedQuery = normalizeSearchValue(query.trim());
+  if (!normalizedQuery) return true;
+
+  const csfdId = extractCsfdId(row.csfdLink);
+  const haystack = [
+    row.orderNumber,
+    row.tmdbId,
+    csfdId,
+    row.title,
+    row.year,
+    row.tmdbLink,
+    row.csfdLink,
+    row.csfdRating,
+    row.status
+  ].join(" ");
+
+  return normalizeSearchValue(haystack).includes(normalizedQuery);
+}
+
+function compareIds(a: string, b: string) {
+  const aNum = Number.parseInt(a, 10);
+  const bNum = Number.parseInt(b, 10);
+  const aHasNum = Number.isFinite(aNum);
+  const bHasNum = Number.isFinite(bNum);
+
+  if (aHasNum && bHasNum) return aNum - bNum;
+  if (aHasNum) return -1;
+  if (bHasNum) return 1;
+  return a.localeCompare(b);
+}
+
 export function MovieMatcherTable() {
   const [rows, setRows] = useState<MovieRow[]>([]);
   const [skipFirstRow, setSkipFirstRow] = useState(false);
@@ -58,7 +104,11 @@ export function MovieMatcherTable() {
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>("all");
   const [apiToken, setApiToken] = useState("");
   const [showSettings, setShowSettings] = useState(false);
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>("dark");
+  const [searchDraft, setSearchDraft] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("tmdbId");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
   const [editingRatingId, setEditingRatingId] = useState<string | null>(null);
   const [draftRating, setDraftRating] = useState<string>("");
@@ -66,7 +116,11 @@ export function MovieMatcherTable() {
   const shouldStopRef = useRef(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setTheme(getInitialTheme()); }, []);
+  useEffect(() => {
+    const initialTheme = getInitialTheme();
+    setTheme(initialTheme);
+    applyTheme(initialTheme);
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -125,9 +179,21 @@ export function MovieMatcherTable() {
     return rows.filter((r) => {
       if (statusFilter !== "all" && r.status !== statusFilter) return false;
       if (!ignoreRating && ratingFilter !== "all" && !matchesRatingFilter(r, ratingFilter)) return false;
+      if (!rowMatchesSearch(r, searchQuery)) return false;
       return true;
     });
-  }, [rows, statusFilter, ratingFilter, ignoreRating]);
+  }, [rows, statusFilter, ratingFilter, ignoreRating, searchQuery]);
+
+  const displayRows = useMemo(() => {
+    const sorted = [...filteredRows].sort((a, b) => {
+      const aValue = sortKey === "tmdbId" ? a.tmdbId : extractCsfdId(a.csfdLink);
+      const bValue = sortKey === "tmdbId" ? b.tmdbId : extractCsfdId(b.csfdLink);
+      const result = compareIds(aValue, bValue);
+      return sortDirection === "asc" ? result : -result;
+    });
+
+    return sorted;
+  }, [filteredRows, sortDirection, sortKey]);
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -142,6 +208,8 @@ export function MovieMatcherTable() {
       setFileName(file.name);
       setStatusFilter("all");
       setRatingFilter("all");
+      setSearchDraft("");
+      setSearchQuery("");
     } catch (err) {
       alert(`Chyba pri načítaní súboru: ${err instanceof Error ? err.message : "Neznáma chyba"}`);
     }
@@ -241,7 +309,7 @@ export function MovieMatcherTable() {
 
   const matchingProgress = isMatching ? progress : null;
   const showRatingCol = !ignoreRating;
-  const colSpanTotal = showRatingCol ? 8 : 7;
+  const colSpanTotal = showRatingCol ? 9 : 8;
 
   return (
     <div className="flex flex-col gap-5">
@@ -386,6 +454,46 @@ export function MovieMatcherTable() {
 
       {/* Action buttons + filters */}
       <div className="flex flex-wrap items-center gap-3">
+        <form
+          className="flex min-w-0 flex-wrap items-center gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setSearchQuery(searchDraft);
+          }}
+        >
+          <input
+            className="min-w-64 rounded-md border px-3 py-2.5 text-sm outline-none transition"
+            placeholder="Hľadať TMDb ID, ČSFD ID, názov..."
+            style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
+            type="search"
+            value={searchDraft}
+            onChange={(event) => {
+              setSearchDraft(event.target.value);
+              if (!event.target.value) setSearchQuery("");
+            }}
+          />
+          <button
+            className="rounded-md px-4 py-2.5 text-sm font-semibold transition"
+            style={{ background: "var(--spruce)", color: "var(--accent-contrast)" }}
+            type="submit"
+          >
+            Hľadať
+          </button>
+          {searchQuery ? (
+            <button
+              className="rounded-md border px-3 py-2.5 text-sm font-semibold transition"
+              style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
+              type="button"
+              onClick={() => {
+                setSearchDraft("");
+                setSearchQuery("");
+              }}
+            >
+              Vyčistiť
+            </button>
+          ) : null}
+        </form>
+
         <button
           className="rounded-lg px-5 py-2.5 text-sm font-bold uppercase tracking-wide transition disabled:cursor-not-allowed disabled:opacity-40"
           disabled={!rows.length || isMatching}
@@ -557,7 +665,8 @@ export function MovieMatcherTable() {
                       )}
                     </td>
                   </tr>
-                ))
+                  );
+                })
               ) : (
                 <tr>
                   <td className="px-4 py-20 text-center" colSpan={colSpanTotal} style={{ color: "var(--text-faint)" }}>

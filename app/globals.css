@@ -2,8 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Light mode (default) ── */
+/* ── Default Filmy theme ── */
 :root,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #070a0f;
+  --surface: #10151d;
+  --surface-2: #151d29;
+  --border: #344154;
+  --text: #f8fafc;
+  --text-muted: #d5deea;
+  --text-faint: #9aa9bd;
+  --ink: #f8fafc;
+  --spruce: #facc15;
+  --spruce-hover: #fbbf24;
+  --accent-contrast: #090b10;
+  --ember: #fb7185;
+  --mist: #182232;
+  --shadow: 0 16px 48px rgba(0, 0, 0, 0.42);
+  --badge-success-bg: #064e3b;
+  --badge-success-text: #86efac;
+  --badge-danger-bg: #450a0a;
+  --badge-danger-text: #fca5a5;
+  --badge-warning-bg: #451a03;
+  --badge-warning-text: #fcd34d;
+  --badge-info-bg: #0c4a6e;
+  --badge-info-text: #7dd3fc;
+}
+
+/* ── Light mode ── */
 [data-theme="light"] {
   color-scheme: light;
   --bg: #f5f6f8;
