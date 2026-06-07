@@ -6,19 +6,23 @@
 :root,
 [data-theme="light"] {
   color-scheme: light;
-  --bg: #f7f9fb;
+  --bg: #f5f6f8;
   --surface: #ffffff;
-  --surface-2: #f0f4f8;
-  --border: #e2e8f0;
-  --text: #17202a;
-  --text-muted: #64748b;
-  --text-faint: #94a3b8;
-  --ink: #17202a;
+  --surface-2: #eef1f5;
+  --border: #d8dde5;
+  --border-dashed: #c5cdd8;
+  --text: #1a1f2b;
+  --text-muted: #5a6478;
+  --text-faint: #8b95a8;
+  --ink: #1a1f2b;
   --spruce: #0f766e;
   --spruce-hover: #0d6560;
+  --accent: #d4a843;
+  --accent-hover: #c49a38;
+  --accent-text: #1a1500;
   --ember: #b42318;
-  --mist: #eef3f7;
-  --shadow: 0 12px 40px rgba(23, 32, 42, 0.08);
+  --mist: #e8ecf2;
+  --shadow: 0 8px 32px rgba(20, 25, 35, 0.07);
   --badge-success-bg: #d1fae5;
   --badge-success-text: #065f46;
   --badge-danger-bg: #fee2e2;
@@ -32,19 +36,23 @@
 /* ── Dark mode ── */
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0f1318;
-  --surface: #181e26;
-  --surface-2: #1e2630;
-  --border: #2d3748;
-  --text: #e2e8f0;
-  --text-muted: #94a3b8;
+  --bg: #0d1117;
+  --surface: #151b23;
+  --surface-2: #1c2333;
+  --border: #252d3a;
+  --border-dashed: #303a4a;
+  --text: #d6dce6;
+  --text-muted: #8b95a8;
   --text-faint: #4a5568;
-  --ink: #e2e8f0;
+  --ink: #d6dce6;
   --spruce: #2dd4bf;
   --spruce-hover: #14b8a6;
+  --accent: #e0b44c;
+  --accent-hover: #d4a843;
+  --accent-text: #1a1500;
   --ember: #f87171;
-  --mist: #1e2630;
-  --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  --mist: #1c2333;
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   --badge-success-bg: #064e3b;
   --badge-success-text: #6ee7b7;
   --badge-danger-bg: #450a0a;
@@ -83,7 +91,15 @@ textarea {
   transition-duration: 0.15s;
   transition-timing-function: ease;
 }
-/* Vynechaj transition pre animácie */
 [data-no-transition] * {
   transition: none !important;
+}
+
+/* Focus ring */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

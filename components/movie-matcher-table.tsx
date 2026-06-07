@@ -60,7 +60,6 @@ export function MovieMatcherTable() {
   const [showSettings, setShowSettings] = useState(false);
   const [theme, setTheme] = useState<Theme>("light");
 
-  // Oddelený lokálny draft — rows sa nemenia počas písania
   const [editingRatingId, setEditingRatingId] = useState<string | null>(null);
   const [draftRating, setDraftRating] = useState<string>("");
 
@@ -85,13 +84,11 @@ export function MovieMatcherTable() {
     applyTheme(next);
   }
 
-  // Otvorí edit pre daný riadok, nastaví draft na aktuálnu hodnotu (bez %)
   function startEditRating(localId: string, currentRating: string) {
     setEditingRatingId(localId);
     setDraftRating(currentRating.replace("%", ""));
   }
 
-  // Zapíše draft do rows a zatvorí edit
   function commitRating(localId: string) {
     const raw = draftRating.replace(/[^0-9]/g, "").slice(0, 3);
     const num = parseInt(raw);
@@ -101,7 +98,6 @@ export function MovieMatcherTable() {
     setDraftRating("");
   }
 
-  // Zruší edit bez zmeny (Escape)
   function cancelEditRating() {
     setEditingRatingId(null);
     setDraftRating("");
@@ -249,16 +245,25 @@ export function MovieMatcherTable() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Toolbar */}
-      <div className="rounded-lg border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)", boxShadow: "var(--shadow)" }}>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          {/* Ľavá strana */}
-          <div className="flex flex-wrap items-center gap-3">
+      {/* Toolbar card */}
+      <div
+        className="rounded-xl border p-5"
+        style={{ background: "var(--surface)", borderColor: "var(--border)", boxShadow: "var(--shadow)" }}
+      >
+        {/* Subsection label */}
+        <p
+          className="mb-4 text-[11px] font-bold uppercase tracking-widest"
+          style={{ color: "var(--text-faint)", borderBottom: "1px dashed var(--border-dashed)", paddingBottom: "10px" }}
+        >
+          {fileName ? `Import — ${fileName}` : "Import súboru"}
+        </p>
 
-            {/* Upload CSV */}
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Upload CSV — golden primary CTA */}
             <label
-              className="inline-flex cursor-pointer items-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold text-white transition"
-              style={{ background: "var(--ink)" }}
+              className="inline-flex cursor-pointer items-center gap-2.5 rounded-lg px-5 py-3 text-sm font-bold uppercase tracking-wide transition hover:brightness-110"
+              style={{ background: "var(--accent)", color: "var(--accent-text)" }}
               title="Nahrať CSV súbor"
             >
               <UploadIcon />
@@ -266,10 +271,10 @@ export function MovieMatcherTable() {
               <input accept=".csv,text/csv" className="sr-only" type="file" onChange={handleFileChange} />
             </label>
 
-            {/* Import JSON */}
+            {/* Import JSON — outlined */}
             <label
-              className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2.5 text-sm font-semibold transition"
-              style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
+              className="inline-flex cursor-pointer items-center gap-2.5 rounded-lg border px-5 py-3 text-sm font-semibold uppercase tracking-wide transition hover:brightness-110"
+              style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text-muted)" }}
               title="Importovať uložený JSON súbor"
             >
               <UploadIcon />
@@ -277,34 +282,32 @@ export function MovieMatcherTable() {
               <input accept=".json,application/json" className="sr-only" type="file" onChange={handleFileChange} />
             </label>
 
-            {/* Ignorovať prvý riadok */}
             <label className="inline-flex items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
               <input
                 checked={skipFirstRow}
-                className="h-4 w-4 rounded border-slate-300"
+                className="h-4 w-4 rounded"
                 type="checkbox"
+                style={{ accentColor: "var(--accent)" }}
                 onChange={(e) => setSkipFirstRow(e.target.checked)}
               />
               Ignorovať prvý riadok
             </label>
 
-            {fileName ? <span className="text-sm" style={{ color: "var(--text-faint)" }}>{fileName}</span> : null}
-
             <input
-              className="min-w-56 rounded-md border px-3 py-2 text-sm outline-none transition"
+              className="min-w-48 rounded-lg border px-3 py-2.5 text-sm outline-none transition"
               placeholder="Interný API token"
-              style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
+              style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text)" }}
               type="password"
               value={apiToken}
               onChange={(event) => setApiToken(event.target.value)}
             />
 
-            {/* Ikona nastavení */}
+            {/* Settings */}
             <div className="relative ml-1" ref={settingsRef}>
               <button
                 aria-label="Nastavenia"
-                className="flex h-9 w-9 items-center justify-center rounded-md border transition"
-                style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text-muted)" }}
+                className="flex h-10 w-10 items-center justify-center rounded-lg border transition hover:brightness-110"
+                style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text-muted)" }}
                 type="button"
                 onClick={() => setShowSettings((v) => !v)}
               >
@@ -313,16 +316,15 @@ export function MovieMatcherTable() {
 
               {showSettings && (
                 <div
-                  className="absolute left-0 top-11 z-50 min-w-56 rounded-lg border p-3 shadow-lg"
+                  className="absolute left-0 top-12 z-50 min-w-56 rounded-xl border p-3 shadow-xl"
                   style={{ background: "var(--surface)", borderColor: "var(--border)" }}
                 >
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-faint)" }}>
+                  <p className="mb-2 text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--text-faint)" }}>
                     Nastavenia
                   </p>
 
-                  {/* Dark / Light mode */}
                   <button
-                    className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-sm transition hover:opacity-80"
+                    className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm transition hover:opacity-80"
                     style={{ color: "var(--text)" }}
                     type="button"
                     onClick={toggleTheme}
@@ -331,17 +333,17 @@ export function MovieMatcherTable() {
                     {theme === "dark" ? "Svetlý režim" : "Tmavý režim"}
                   </button>
 
-                  <div className="my-2 border-t" style={{ borderColor: "var(--border)" }} />
+                  <div className="my-2" style={{ borderTop: "1px dashed var(--border-dashed)" }} />
 
-                  {/* Ignorovať hodnotenie */}
                   <label
-                    className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm hover:opacity-80"
+                    className="flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2.5 text-sm hover:opacity-80"
                     style={{ color: "var(--text)" }}
                   >
                     <input
                       checked={ignoreRating}
-                      className="h-4 w-4 rounded border-slate-300"
+                      className="h-4 w-4 rounded"
                       type="checkbox"
+                      style={{ accentColor: "var(--accent)" }}
                       onChange={(e) => {
                         setIgnoreRating(e.target.checked);
                         if (e.target.checked) setRatingFilter("all");
@@ -350,14 +352,14 @@ export function MovieMatcherTable() {
                     Ignorovať hodnotenie
                   </label>
 
-                  <div className="my-2 border-t" style={{ borderColor: "var(--border)" }} />
-                  <p className="px-2 text-xs" style={{ color: "var(--text-faint)" }}>v0.4.2</p>
+                  <div className="my-2" style={{ borderTop: "1px dashed var(--border-dashed)" }} />
+                  <p className="px-2.5 text-xs" style={{ color: "var(--text-faint)" }}>v0.4.2</p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Pravá strana – štatistiky */}
+          {/* Stats */}
           <div className="grid grid-cols-3 gap-2 text-center text-sm sm:min-w-80">
             <Stat label="Riadky" value={stats.total} />
             <Stat label="Spárované" value={stats.matched} />
@@ -367,66 +369,66 @@ export function MovieMatcherTable() {
 
         {/* Progress bar */}
         {matchingProgress !== null && (
-          <div className="mt-4">
-            <div className="mb-1 flex justify-between text-xs" style={{ color: "var(--text-muted)" }}>
+          <div className="mt-5">
+            <div className="mb-1.5 flex justify-between text-xs" style={{ color: "var(--text-muted)" }}>
               <span>Prebieha párovanie…</span>
-              <span>{matchingProgress}%</span>
+              <span>{matchingProgress} %</span>
             </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full" style={{ background: "var(--surface-2)" }}>
+            <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--surface-2)" }}>
               <div
                 className="h-full rounded-full transition-all duration-300"
-                style={{ width: `${matchingProgress}%`, background: "var(--spruce)" }}
+                style={{ width: `${matchingProgress}%`, background: "var(--accent)" }}
               />
             </div>
           </div>
         )}
       </div>
 
-      {/* Akčné tlačidlá + filtre */}
+      {/* Action buttons + filters */}
       <div className="flex flex-wrap items-center gap-3">
         <button
-          className="rounded-md px-4 py-2.5 text-sm font-semibold text-white transition disabled:cursor-not-allowed"
+          className="rounded-lg px-5 py-2.5 text-sm font-bold uppercase tracking-wide transition disabled:cursor-not-allowed disabled:opacity-40"
           disabled={!rows.length || isMatching}
-          style={{ background: rows.length && !isMatching ? "var(--spruce)" : "var(--text-faint)" }}
+          style={{ background: "var(--accent)", color: "var(--accent-text)" }}
           type="button"
           onClick={runMatching}
         >
           Spustiť párovanie
         </button>
         <button
-          className="rounded-md border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed"
+          className="rounded-lg border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40"
           disabled={!isMatching}
-          style={{ background: "var(--surface)", borderColor: "var(--border)", color: isMatching ? "var(--text)" : "var(--text-faint)" }}
+          style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
           type="button"
           onClick={stopMatching}
         >
           Zastaviť
         </button>
         <button
-          className="rounded-md border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed"
+          className="rounded-lg border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40"
           disabled={!rows.length}
-          style={{ background: "var(--surface)", borderColor: "var(--border)", color: rows.length ? "var(--text)" : "var(--text-faint)" }}
+          style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
           type="button"
           onClick={exportCsv}
         >
           Exportovať CSV
         </button>
         <button
-          className="rounded-md border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed"
+          className="rounded-lg border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40"
           disabled={!rows.length}
-          style={{ background: "var(--surface)", borderColor: "var(--border)", color: rows.length ? "var(--text)" : "var(--text-faint)" }}
+          style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
           type="button"
           onClick={exportJson}
         >
           Exportovať JSON
         </button>
 
-        {/* Filtre – vpravo */}
+        {/* Filters */}
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <span className="text-sm" style={{ color: "var(--text-muted)" }}>Stav:</span>
+          <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-faint)" }}>Stav:</span>
           <select
-            className="rounded-md border px-3 py-2 text-sm transition"
-            style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
+            className="rounded-lg border px-3 py-2 text-sm transition"
+            style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text)" }}
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
           >
@@ -437,10 +439,10 @@ export function MovieMatcherTable() {
 
           {!ignoreRating && (
             <>
-              <span className="text-sm" style={{ color: "var(--text-muted)" }}>Hodnotenie:</span>
+              <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-faint)" }}>Hodnotenie:</span>
               <select
-                className="rounded-md border px-3 py-2 text-sm transition"
-                style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
+                className="rounded-lg border px-3 py-2 text-sm transition"
+                style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text)" }}
                 value={ratingFilter}
                 onChange={(e) => setRatingFilter(e.target.value as RatingFilter)}
               >
@@ -452,73 +454,76 @@ export function MovieMatcherTable() {
           )}
 
           {(statusFilter !== "all" || ratingFilter !== "all") && (
-            <span className="text-sm" style={{ color: "var(--text-faint)" }}>
+            <span className="text-sm tabular-nums" style={{ color: "var(--text-faint)" }}>
               {filteredRows.length} / {rows.length}
             </span>
           )}
         </div>
       </div>
 
-      {/* Tabuľka */}
+      {/* Table */}
       <div
-        className="overflow-hidden rounded-lg border"
+        className="overflow-hidden rounded-xl border"
         style={{ background: "var(--surface)", borderColor: "var(--border)", boxShadow: "var(--shadow)" }}
       >
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y text-sm" style={{ borderColor: "var(--border)" }}>
-            <thead style={{ background: "var(--mist)" }}>
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>#</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>TMDb ID</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Názov</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Rok</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>ČSFD Link</th>
+          <table className="min-w-full text-sm" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
+            <thead>
+              <tr style={{ borderBottom: "1px dashed var(--border-dashed)" }}>
+                <th className="px-4 py-3.5 text-left text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--text-faint)", background: "var(--mist)" }}>#</th>
+                <th className="px-4 py-3.5 text-left text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--text-faint)", background: "var(--mist)" }}>TMDb ID</th>
+                <th className="px-4 py-3.5 text-left text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--text-faint)", background: "var(--mist)" }}>Názov</th>
+                <th className="px-4 py-3.5 text-left text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--text-faint)", background: "var(--mist)" }}>Rok</th>
+                <th className="px-4 py-3.5 text-left text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--text-faint)", background: "var(--mist)" }}>Status</th>
+                <th className="px-4 py-3.5 text-left text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--text-faint)", background: "var(--mist)" }}>ČSFD Link</th>
                 {showRatingCol && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Hodnotenie</th>
+                  <th className="px-4 py-3.5 text-left text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--text-faint)", background: "var(--mist)" }}>Hodnotenie</th>
                 )}
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Akcia</th>
+                <th className="px-4 py-3.5 text-left text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--text-faint)", background: "var(--mist)" }}>Akcia</th>
               </tr>
             </thead>
             <tbody>
               {filteredRows.length ? (
-                filteredRows.map((row) => (
-                  <tr key={row.localId} className="align-top border-t" style={{ borderColor: "var(--border)" }}>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm tabular-nums" style={{ color: "var(--text-faint)" }}>{row.orderNumber || "—"}</td>
-                    <td className="whitespace-nowrap px-4 py-3 font-medium tabular-nums" style={{ color: "var(--text)" }}>{row.tmdbId}</td>
-                    <td className="min-w-64 px-4 py-3">
+                filteredRows.map((row, i) => (
+                  <tr
+                    key={row.localId}
+                    className="align-top"
+                    style={{ borderTop: i > 0 ? "1px solid var(--border)" : "none" }}
+                  >
+                    <td className="whitespace-nowrap px-4 py-3.5 text-sm tabular-nums" style={{ color: "var(--text-faint)" }}>{row.orderNumber || "—"}</td>
+                    <td className="whitespace-nowrap px-4 py-3.5 font-medium tabular-nums" style={{ color: "var(--text)" }}>{row.tmdbId}</td>
+                    <td className="min-w-64 px-4 py-3.5">
                       <div className="font-medium" style={{ color: "var(--text)" }}>{row.title}</div>
                       {row.tmdbLink ? (
-                        <a className="mt-1 inline-block text-xs underline-offset-2 hover:underline" href={row.tmdbLink} rel="noreferrer" style={{ color: "var(--text-faint)" }} target="_blank">TMDb</a>
+                        <a className="mt-1 inline-block text-xs underline-offset-2 hover:underline" href={row.tmdbLink} rel="noreferrer" style={{ color: "var(--accent)" }} target="_blank">TMDb</a>
                       ) : null}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3" style={{ color: "var(--text-muted)" }}>{row.year}</td>
-                    <td className="min-w-40 px-4 py-3">
+                    <td className="whitespace-nowrap px-4 py-3.5 tabular-nums" style={{ color: "var(--text-muted)" }}>{row.year}</td>
+                    <td className="min-w-40 px-4 py-3.5">
                       <StatusBadge status={row.status} />
                       {row.message ? <p className="mt-1 text-xs" style={{ color: "var(--text-faint)" }}>{row.message}</p> : null}
                     </td>
-                    <td className="min-w-80 px-4 py-3">
+                    <td className="min-w-80 px-4 py-3.5">
                       <input
-                        className="w-full rounded-md border px-3 py-2 text-sm outline-none transition"
+                        className="w-full rounded-lg border px-3 py-2 text-sm outline-none transition"
                         placeholder="https://www.csfd.cz/film/..."
-                        style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
+                        style={{ background: "var(--surface-2)", borderColor: "var(--border)", color: "var(--text)" }}
                         type="url"
                         value={row.csfdLink}
                         onChange={(e) => updateRow(row.localId, { csfdLink: e.target.value, status: e.target.value ? "matched" : "idle" })}
                       />
                     </td>
                     {showRatingCol && (
-                      <td className="whitespace-nowrap px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3.5">
                         {editingRatingId === row.localId ? (
                           <input
                             autoFocus
-                            className="w-20 rounded-md border px-2 py-1 text-center text-sm font-bold outline-none transition"
+                            className="w-20 rounded-lg border px-2 py-1 text-center text-sm font-bold outline-none transition"
                             placeholder="0-100"
-                            style={{ background: "var(--surface)", borderColor: "var(--spruce)", color: "var(--text)" }}
+                            style={{ background: "var(--surface-2)", borderColor: "var(--accent)", color: "var(--text)" }}
                             type="text"
                             value={draftRating}
                             onChange={(e) => {
-                              // Len číslice, max 3 znaky — ukladá sa do draftRating, NIE do rows
                               setDraftRating(e.target.value.replace(/[^0-9]/g, "").slice(0, 3));
                             }}
                             onBlur={() => commitRating(row.localId)}
@@ -544,9 +549,9 @@ export function MovieMatcherTable() {
                         )}
                       </td>
                     )}
-                    <td className="whitespace-nowrap px-4 py-3">
+                    <td className="whitespace-nowrap px-4 py-3.5">
                       {row.csfdLink ? (
-                        <a className="font-semibold underline-offset-2 hover:underline" href={row.csfdLink} rel="noreferrer" style={{ color: "var(--spruce)" }} target="_blank">Otvoriť</a>
+                        <a className="font-semibold underline-offset-2 hover:underline" href={row.csfdLink} rel="noreferrer" style={{ color: "var(--accent)" }} target="_blank">Otvoriť</a>
                       ) : (
                         <span style={{ color: "var(--text-faint)" }}>—</span>
                       )}
@@ -555,13 +560,13 @@ export function MovieMatcherTable() {
                 ))
               ) : (
                 <tr>
-                  <td className="px-4 py-16 text-center" colSpan={colSpanTotal} style={{ color: "var(--text-faint)" }}>
+                  <td className="px-4 py-20 text-center" colSpan={colSpanTotal} style={{ color: "var(--text-faint)" }}>
                     {rows.length === 0 ? (
-                      <div className="flex flex-col items-center gap-3">
+                      <div className="flex flex-col items-center gap-4">
                         <EmptyStateIcon />
                         <div>
-                          <p className="font-medium text-sm" style={{ color: "var(--text-muted)" }}>Žiadne dáta</p>
-                          <p className="text-xs mt-1">Nahraj CSV alebo JSON súbor vo formáte: poradové číslo, TMDb ID, rok, názov, TMDb link.</p>
+                          <p className="text-sm font-semibold" style={{ color: "var(--text-muted)" }}>Žiadne dáta</p>
+                          <p className="mt-1 text-xs">Nahraj CSV alebo JSON súbor vo formáte: poradové číslo, TMDb ID, rok, názov, TMDb link.</p>
                         </div>
                       </div>
                     ) : (
@@ -577,4 +582,3 @@ export function MovieMatcherTable() {
     </div>
   );
 }
-
